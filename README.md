@@ -10,7 +10,7 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.7)
+## Features (v0.8)
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
   random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
   change their password, see and sign out sessions, and delete the account.
@@ -48,7 +48,10 @@ Data lives in **Neon** serverless Postgres.
     version or the overlay file, and apply overlay files on import. Share links always show the public version.
   - **OpenAPI 3.2 tag tree:** child groups (`parent`) nest in the reference navigation.
   - **Events (AsyncAPI 3.0, 2.x read):** draft from queues on the diagram, import, read as a reference,
-    edit as YAML/JSON, check, export YAML/JSON/Markdown, include in share links.
+    edit in a **guided form** (v0.8: servers, channels, operations, messages, security; renames update
+    every reference) or as YAML/JSON, check, export YAML/JSON/Markdown, include in share links.
+  - **Swagger 2.0 import (v0.8):** older Swagger files are converted to OpenAPI 3.1 on import (servers,
+    bodies, form uploads, responses, components, security, `$ref`s), with notes on anything to check.
   - **Arazzo 1.0 ↔ batch tests:** export/import scenarios as Arazzo workflows (steps that match
     documented operations use operationId + successCriteria); generate a scenario from the API docs
     (public GETs answer as documented, protected ones refuse missing credentials).
@@ -88,14 +91,26 @@ Data lives in **Neon** serverless Postgres.
 `project.save` uses optimistic concurrency (`expectedVersion`). If the project was saved somewhere
 else, you're asked before anything is overwritten.
 
-## Run locally (PowerShell)
-```powershell
-cd web
-copy .env.example .env.local     # paste your Neon DATABASE_URL
-npm install
-npm run db:migrate               # creates tables (0001–0003) + testuser / password123
-npm run dev                      # http://localhost:3000
-```
+## Run on your own computer (Windows)
+1. Install **Node.js 20.9+** (`winget install OpenJS.NodeJS.LTS`). For a fully offline database also
+   install **Docker Desktop** (`winget install Docker.DockerDesktop`); otherwise use your Neon URL.
+2. Double-click **`Setup Slyshark.cmd`** in the project folder. Choose *1) Local database in Docker*
+   (or *2) Neon*). It writes `web\.env.local`, installs packages, creates the tables and runs a health check.
+3. Double-click **`Start Slyshark.cmd`**. Your browser opens http://localhost:3000; sign in as
+   `testuser` / `password123`. Close the window (or Ctrl+C) to stop.
+
+| Task | Command (PowerShell, from the project folder) |
+|---|---|
+| Start (optimised build, auto-rebuilds after code changes) | `powershell -ExecutionPolicy Bypass -File local\start.ps1` |
+| Start with live reload while editing | `... local\start.ps1 -Mode dev` |
+| Other port / no browser | `... local\start.ps1 -Port 3100 -NoBrowser` |
+| Health check | `cd web; npm run doctor` |
+| Local database | `... local\db.ps1 up / stop / status / logs / reset` |
+| Choose a different database | `... local\setup.ps1 -Force` |
+
+Local mode differs from Netlify on purpose: private/LAN targets are allowed (`ALLOW_PRIVATE_TARGETS=true`),
+tools get 30 s instead of 8.5 s, scans take up to 1000 ports per request, and `COOKIE_SECURE=false`
+lets other devices on your network sign in over http. macOS/Linux: `./local/setup.sh`, `./local/start.sh`.
 
 ## Deploy to Netlify
 1. Push this repo to GitHub (see below).
@@ -133,6 +148,8 @@ web/src/app/dashboard/       overview, workspaces, projects/[id] (workbench), ru
 web/src/components/          Shell, designer/*, docs/* (API docs: editor, reference, Try it, auth matrix, security check), security/* (FindingsList, SecurityReport, ThreatModel), docs/EventsDocs, LayoutDocs, ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
 web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, openapi/* (model, generator, validator, YAML/JSON I/O), security/* (owasp, authMatrix, assessment, triage, threats), openapi/{arazzo,overlay}, asyncapi, layout, pcap/*
 samples/                     slyshark-demo.pcap + generator
+local/                       setup/start/db scripts for running on your own computer (+ Setup/Start Slyshark.cmd)
+docker-compose.yml           optional local Postgres (localhost:5433)
 ```
 
 ## Relationship to Wireshark

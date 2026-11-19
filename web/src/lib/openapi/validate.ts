@@ -15,7 +15,7 @@ export function validate(raw: unknown): Issue[] {
   const add = (level: Issue["level"], where: string, message: string, key?: string) => out.push({ level, where, message, key });
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [{ level: "error", where: "document", message: "The document must be an object (a YAML mapping or JSON object)." }];
   const doc = raw as OpenApiDoc & { swagger?: string };
-  if (doc.swagger) { add("error", "swagger", `This is a Swagger ${doc.swagger} document. Slyshark edits OpenAPI 3.x: convert it first (for example with the Swagger Editor's “Convert to OpenAPI 3” option), then import it again.`); return out; }
+  if (doc.swagger) { add("error", "swagger", `This is a Swagger ${doc.swagger} document. Use “Convert to OpenAPI 3.1” above (or Import the file) and Slyshark converts it for you.`); return out; }
   if (typeof doc.openapi !== "string" || !/^3\.[012]\.\d+$/.test(doc.openapi)) add("error", "openapi", "Set `openapi` to a version such as 3.1.0 (or 3.2.0) so tools know how to read the document.");
   const v32 = typeof doc.openapi === "string" && is32(doc);
   const v30 = typeof doc.openapi === "string" && /^3\.0\./.test(doc.openapi);

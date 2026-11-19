@@ -64,7 +64,9 @@ export async function createSession(userId: string, userAgent: string | null): P
 export const cookieOptions = () => ({
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  // Secure cookies need HTTPS. Running the production build on a local PC over http://<LAN-IP>
+  // needs COOKIE_SECURE=false (localhost itself works either way).
+  secure: process.env.COOKIE_SECURE ? !["0", "false", "no"].includes(process.env.COOKIE_SECURE.toLowerCase()) : process.env.NODE_ENV === "production",
   path: "/",
   maxAge: config.sessionTtlHours * 3600,
 });

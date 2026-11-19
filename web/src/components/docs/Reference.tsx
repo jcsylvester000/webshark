@@ -82,7 +82,7 @@ function OperationView({ doc, o, projectId }: { doc: OpenApiDoc; o: OpRef; proje
         <span className={`ml-auto flex items-center gap-1 text-xs ${sec.source === "none" ? "text-muted" : isPublic ? "text-amber-300" : "text-fin"}`}>{isPublic ? <Unlock size={12} /> : sec.source === "none" ? null : <Lock size={12} />}{authText(doc, o)}</span>
       </div>
       <div className="space-y-4 p-4">
-        {o.op.summary && <h4 className="font-medium">{o.op.summary}</h4>}
+        {o.op.summary ? <h4 className="font-medium">{o.op.summary}</h4> : <h4 className="sr-only">{o.key}</h4>}
         {o.op.description && <p className="whitespace-pre-wrap text-sm text-muted">{o.op.description}</p>}
         {params.length > 0 && (
           <div><h5 className="mb-1 text-xs uppercase tracking-wider text-muted">Parameters</h5>

@@ -1,0 +1,23 @@
+# Local Postgres for running Slyshark on your own computer (optional: Neon works locally too).
+# Start: docker compose up -d   ·   Stop: docker compose stop   ·   Wipe data: docker compose down -v
+# Connection string: postgresql://slyshark:slyshark@localhost:5433/slyshark
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: slyshark-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: slyshark
+      POSTGRES_PASSWORD: slyshark
+      POSTGRES_DB: slyshark
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - slyshark-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slyshark -d slyshark"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  slyshark-db:

@@ -38,6 +38,10 @@ try {
     await sql`INSERT INTO users (username, email, display_name, password_hash, role)
               VALUES ('testuser', 'testuser@slyshark.local', 'Test User', ${hash}, 'admin')
               ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash`;
+    // Same starter workspace a normal sign-up gets, so a fresh install isn't empty.
+    await sql`INSERT INTO workspaces (owner_id, name, description)
+              SELECT u.id, 'My Workspace', 'Your first workspace. Rename it or add more anytime.' FROM users u
+              WHERE u.username = 'testuser' AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.owner_id = u.id)`;
     console.warn("[migrate] SEED_TEST_USER is on: testuser / password123 is active (turn off for real users)");
   }
   console.log("[migrate] database is up to date");

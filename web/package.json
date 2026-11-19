@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "doctor": "node --env-file-if-exists=.env.local scripts/doctor.mjs",
     "netlify-build": "node scripts/migrate.mjs && next build"
   },
   "dependencies": {

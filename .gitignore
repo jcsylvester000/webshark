@@ -4,6 +4,9 @@
 .env.*.local
 web/.env.local
 !**/.env.example
+!**/.env.local.example
+*.env.local.bak
+web/.env.local.bak*
 # Build output
 web/.next/
 web/.netlify/

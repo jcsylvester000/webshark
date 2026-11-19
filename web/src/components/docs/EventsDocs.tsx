@@ -4,7 +4,7 @@
  * Read-only reference + YAML/JSON source; drafted from queues on the diagram or imported.
  * Saved with the project like everything else.
  */
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, Radio, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, ListTree, Radio, Wand2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { asyncFromCanvas, asyncMarkdown, validateAsync, viewOf, type AsyncView } from "@/lib/asyncapi";
 import { fileSlug } from "@/lib/export";
@@ -13,6 +13,7 @@ import type { OpenApiDoc } from "@/lib/openapi/types";
 import { useProjects } from "@/lib/store";
 import { dialogs } from "../Dialogs";
 import { HelpTip } from "../HelpTip";
+import { AsyncEditor } from "./AsyncEditor";
 import { CodeEditor } from "./CodeEditor";
 import { SchemaView } from "./SchemaView";
 
@@ -27,7 +28,7 @@ function download(name: string, text: string, type: string) {
 export function EventsDocs({ projectId }: { projectId: string }) {
   const project = useProjects((s) => s.loaded[projectId]);
   const update = useProjects((s) => s.update);
-  const [view, setView] = useState<"reference" | "code">("reference");
+  const [view, setView] = useState<"reference" | "edit" | "code">("reference");
   const [menu, setMenu] = useState(false);
   const [showIssues, setShowIssues] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
@@ -48,7 +49,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
     set(raw, r.format); flash("ok", `Imported ${f.name}.`);
   }
   const fileInput = <input ref={fileRef} type="file" accept=".yaml,.yml,.json" className="hidden" aria-label="Import AsyncAPI file" onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }} />;
-  const draft = () => { const r = asyncFromCanvas(project.state.canvas, project.meta.name); set(r.doc); flash("ok", `Draft created with ${r.channels} channel${r.channels === 1 ? "" : "s"} from the diagram. Describe each message's fields in YAML / JSON.`); };
+  const draft = () => { const r = asyncFromCanvas(project.state.canvas, project.meta.name); set(r.doc); flash("ok", `Draft created with ${r.channels} channel${r.channels === 1 ? "" : "s"} from the diagram. Describe each message in Edit → Messages.`); };
 
   if (!spec) return (
     <div className="h-full overflow-auto p-6">
@@ -61,7 +62,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
         {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-fin/40 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
         <div className="grid gap-3 md:grid-cols-3">
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60 disabled:opacity-60" disabled={!queues} onClick={draft}><Wand2 className="text-fin" size={20} /><span className="font-medium">Draft from the diagram</span><span className="text-xs text-muted">{queues ? `Uses your ${queues} queue/cache component${queues === 1 ? "" : "s"} and the links into and out of them.` : "Add a Message Queue component to the diagram first."}</span></button>
-          <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60" onClick={() => { set(structuredClone(EXAMPLE)); setView("code"); }}><FilePlus2 className="text-fin" size={20} /><span className="font-medium">Start from an example</span><span className="text-xs text-muted">An AsyncAPI 3.0 document with one Kafka topic you can edit.</span></button>
+          <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60" onClick={() => { set(structuredClone(EXAMPLE)); setView("edit"); }}><FilePlus2 className="text-fin" size={20} /><span className="font-medium">Start from an example</span><span className="text-xs text-muted">An AsyncAPI 3.0 document with one Kafka topic, ready to edit in a form.</span></button>
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60" onClick={() => fileRef.current?.click()}><FileUp className="text-fin" size={20} /><span className="font-medium">Import a file</span><span className="text-xs text-muted">An AsyncAPI 3.0 or 2.x document in YAML or JSON.</span></button>
         </div>
       </div>
@@ -77,7 +78,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
       {fileInput}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <div className="flex rounded-md border border-line p-0.5" role="group" aria-label="Events docs view">
-          {([["reference", "Reference", <Radio key="r" size={14} />], ["code", "YAML / JSON", <Code2 key="c" size={14} />]] as const).map(([k, l, icon]) => <button key={k} aria-pressed={view === k} className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${view === k ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(k)}>{icon}{l}</button>)}
+          {([["reference", "Reference", <Radio key="r" size={14} />], ["edit", "Edit", <ListTree key="e" size={14} />], ["code", "YAML / JSON", <Code2 key="c" size={14} />]] as const).map(([k, l, icon]) => <button key={k} aria-pressed={view === k} className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${view === k ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(k)}>{icon}{l}</button>)}
         </div>
         <button title="Events check" aria-expanded={showIssues} onClick={() => setShowIssues(!showIssues)} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm ${errors ? "border-danger/50 text-danger" : warnings ? "border-amber-500/50 text-amber-300" : "border-fin/40 text-fin"}`}>{errors || warnings ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}{errors ? `${errors} error${errors === 1 ? "" : "s"}` : warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "Valid"}</button>
         <span className="chip">AsyncAPI {v.version || "?"}</span>
@@ -98,7 +99,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
       {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
       {showIssues && <ul aria-label="Events check" className="max-h-48 shrink-0 overflow-y-auto border-b border-line bg-panel px-4 py-2 text-sm">{issues.length ? issues.map((i, n) => <li key={n} className="flex gap-2 py-0.5"><span className={i.level === "error" ? "text-danger" : i.level === "warning" ? "text-amber-300" : "text-fin"}>{i.level}</span>{i.message}</li>) : <li className="text-muted">No problems found.</li>}</ul>}
       <div className="min-h-0 flex-1">
-        {view === "reference" ? <EventsReference v={v} raw={spec} /> : <CodeEditor doc={spec as unknown as OpenApiDoc} format={ev.format} onFormat={(f) => set(spec, f)} onChange={(d) => set(d as unknown as Record<string, unknown>)} />}
+        {view === "reference" ? <EventsReference v={v} raw={spec} /> : view === "edit" ? <AsyncEditor doc={spec} onChange={(d) => set(d)} /> : <CodeEditor doc={spec as unknown as OpenApiDoc} format={ev.format} onFormat={(f) => set(spec, f)} onChange={(d) => set(d as unknown as Record<string, unknown>)} />}
       </div>
     </div>
   );
@@ -107,7 +108,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
 export function EventsReference({ v, raw, embedded }: { v: AsyncView; raw: Record<string, unknown>; embedded?: boolean }) {
   const doc = raw as unknown as OpenApiDoc;
   return (
-    <div className={`overflow-y-auto ${embedded ? "max-h-[640px]" : "h-full"}`}>
+    <div tabIndex={0} role="region" aria-label={`${v.title} event reference`} className={`overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-fin/50 ${embedded ? "max-h-[640px]" : "h-full"}`}>
       <div className="mx-auto max-w-4xl space-y-6 p-6">
         <header className="space-y-2">
           <div className="flex flex-wrap items-baseline gap-2"><h2 className="text-2xl font-semibold">{v.title}</h2><span className="chip">v{v.apiVersion}</span><span className="chip">AsyncAPI {v.version}</span></div>

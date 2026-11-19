@@ -11,6 +11,7 @@ import { generateSpec } from "@/lib/openapi/generate";
 import { apiReport, parseDoc, toMarkdown, toText } from "@/lib/openapi/io";
 import { emptySpec, is32, ops, VERSIONS } from "@/lib/openapi/spec";
 import { applyOverlay, countInternal, isOverlay, publicOverlay, publicVersion } from "@/lib/openapi/overlay";
+import { convertSwagger2, isSwagger2 } from "@/lib/openapi/swagger2";
 import type { OpenApiDoc } from "@/lib/openapi/types";
 import { summarize, validate } from "@/lib/openapi/validate";
 import { useProjects } from "@/lib/store";
@@ -83,6 +84,12 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
       setSpec(res.doc);
       return flash(res.unmatched.length ? "err" : "ok", `Applied overlay “${raw.info?.title ?? f.name}”: ${res.applied} of ${raw.actions.length} changes${res.unmatched.length ? `; no match for ${res.unmatched.slice(0, 3).join(", ")}` : ""}. Revert if it isn't what you wanted.`);
     }
+    if (isSwagger2(raw)) {
+      if (spec && !(await dialogs.confirm({ title: "Replace the current API docs?", message: `${f.name} is a Swagger 2.0 file. It will be converted to OpenAPI 3.1 and replace this project's API description. Revert before saving to undo.`, confirmText: "Convert and replace" }))) return;
+      const c = convertSwagger2(raw);
+      setSpec(c.doc); setFormat(r.format); setView("reference");
+      return flash("ok", `Converted ${f.name} from Swagger 2.0 to OpenAPI 3.1: ${ops(c.doc).length} endpoints.${c.notes.length ? ` Check: ${c.notes.slice(0, 3).join(" ")}${c.notes.length > 3 ? ` (+${c.notes.length - 3} more in the check panel)` : ""}` : ""}`);
+    }
     if (typeof raw.arazzo === "string") return flash("err", "That's an Arazzo workflow file. Import it in the Batch tests tab, where workflows become test scenarios.");
     if (typeof raw.asyncapi === "string") {
       update(projectId, (s) => ({ ...s, docs: { ...s.docs, events: { spec: raw, format: r.format, updatedAt: new Date().toISOString() } } }));
@@ -125,7 +132,7 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
             <FilePlus2 className="text-fin" size={20} /><span className="font-medium">Start blank</span><span className="text-xs text-muted">Fill in a guided form: overview, servers, authentication and endpoints.</span>
           </button>
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60" onClick={() => fileRef.current?.click()}>
-            <FileUp className="text-fin" size={20} /><span className="font-medium">Import a file</span><span className="text-xs text-muted">An OpenAPI 3.x document in YAML or JSON (openapi.yaml). AsyncAPI files open in Events.</span>
+            <FileUp className="text-fin" size={20} /><span className="font-medium">Import a file</span><span className="text-xs text-muted">OpenAPI 3.x or Swagger 2.0 (converted automatically), YAML or JSON. AsyncAPI files open in Events.</span>
           </button>
         </div>
         <p className="text-xs text-muted">New documents use OpenAPI 3.1, which most tools support. You can switch to 3.2 later for its newer features.</p>
@@ -170,6 +177,7 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
         </div>
       </div>
       {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
+      {isSwagger2(spec) && <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">This is Swagger 2.0, the older format. Convert it to OpenAPI 3.1 to edit, check and render it.<button className="btn ml-auto py-1 text-xs" onClick={() => { const c = convertSwagger2(spec); setSpec(c.doc); flash("ok", `Converted to OpenAPI 3.1: ${ops(c.doc).length} endpoints.${c.notes.length ? ` Check: ${c.notes.slice(0, 2).join(" ")}` : ""}`); }}>Convert to OpenAPI 3.1</button></div>}
       {showIssues && <IssuesPanel issues={issues} onClose={() => setShowIssues(false)} onGo={(key) => { if (key) { setFocus((f) => ({ key, n: f.n + 1 })); setView("edit"); } setShowIssues(false); }} />}
       <div className="min-h-0 flex-1">
         {view === "reference" && <Reference doc={spec} projectId={projectId} />}
