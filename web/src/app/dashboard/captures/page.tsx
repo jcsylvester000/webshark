@@ -235,7 +235,7 @@ export default function CapturesPage() {
                 <button onClick={() => setFollow(null)} aria-label="Close"><X size={16} /></button>
               </div>
             </div>
-            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-[12px]">
+            <pre tabIndex={0} className="flex-1 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-[12px]">
               {follow.segments.length === 0 ? <span className="text-muted">No payload in this stream.</span> : follow.segments.map((s, i) => <span key={i} className={s.from_client ? "text-red-300" : "text-sky-300"}>{s.text}</span>)}
             </pre>
           </div>

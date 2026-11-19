@@ -23,6 +23,15 @@ export const GLOSSARY: { term: string; text: string; tags: string[] }[] = [
   { term: "Packet capture (pcap)", text: "A recording of network traffic. Wireshark, tcpdump and dumpcap save .pcap or .pcapng files that you can open on the Packet captures page.", tags: ["capture"] },
   { term: "Display filter", text: "A rule that shows only matching packets, e.g. 'dns', 'tcp.port == 443' or 'ip.addr == 10.0.0.5 && http'. Combine rules with && (and), || (or) and ! (not).", tags: ["capture"] },
   { term: "TCP stream", text: "All packets of one TCP conversation between two endpoints. 'Follow TCP stream' rebuilds the readable data, like an HTTP request and its response.", tags: ["capture"] },
+  { term: "OpenAPI (Swagger)", text: "The standard file format (YAML or JSON) that describes a REST API: its endpoints, parameters, responses and authentication. Swagger was its old name; Swagger 2.0 files are converted to OpenAPI 3.1 when you import them.", tags: ["docs"] },
+  { term: "AsyncAPI", text: "Like OpenAPI, but for event-driven systems: which topics or queues exist (Kafka, MQTT, RabbitMQ), who sends or receives on them, and what each message looks like.", tags: ["docs"] },
+  { term: "Endpoint / operation", text: "One thing an API can do, written as a method and a path, e.g. GET /orders/{orderId}. Parts in {braces} are path parameters.", tags: ["docs"] },
+  { term: "Security scheme", text: "How callers prove who they are to an API: bearer token, API key, Basic auth, OAuth 2.0 or OpenID Connect. Describe the method, never paste real secrets.", tags: ["docs", "security"] },
+  { term: "OWASP API Top 10", text: "The ten most common ways APIs are attacked, e.g. API1 broken object level authorization (changing an ID to read someone else's data) and API2 broken authentication.", tags: ["security"] },
+  { term: "STRIDE", text: "A threat-modeling checklist: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service and Elevation of privilege. Ask each question for every data flow that crosses a trust boundary.", tags: ["security"] },
+  { term: "Trust zone / boundary", text: "A part of the network with the same level of trust (Internet, DMZ, app subnet, data subnet). A trust boundary is where traffic crosses from one zone to another; that's where controls belong.", tags: ["security", "networking"] },
+  { term: "Arazzo", text: "An OpenAPI Initiative format for a sequence of API calls with success criteria, like a recipe. Slyshark imports and exports batch tests as Arazzo workflows.", tags: ["docs"] },
+  { term: "Overlay", text: "A file of repeatable changes applied to an OpenAPI description. Slyshark uses one to make a public version that leaves out endpoints marked Internal.", tags: ["docs"] },
 ];
 
 export const FILTER_EXAMPLES: { f: string; why: string }[] = [

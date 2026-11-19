@@ -203,7 +203,7 @@ export function ApiClient({ projectId }: { projectId: string }) {
             <div className="max-w-md space-y-3 text-sm">
               <label className="flex items-center gap-2"><input type="checkbox" checked={req.follow_redirects} onChange={(e) => set({ follow_redirects: e.target.checked })} />Follow redirects</label>
               <div><label className="label" htmlFor="timeout">Timeout (ms)</label><input id="timeout" type="number" className="input w-40" value={req.timeout_ms} onChange={(e) => set({ timeout_ms: Number(e.target.value) })} /></div>
-              <div><div className="label">cURL</div><pre className="overflow-x-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{curl()}</pre><button className="btn mt-1 text-xs" onClick={() => navigator.clipboard.writeText(curl())}><Copy size={12} />Copy</button></div>
+              <div><div className="label">cURL</div><pre tabIndex={0} className="overflow-x-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{curl()}</pre><button className="btn mt-1 text-xs" onClick={() => navigator.clipboard.writeText(curl())}><Copy size={12} />Copy</button></div>
             </div>
           )}
         </div>

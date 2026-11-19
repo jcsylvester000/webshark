@@ -1,6 +1,7 @@
 "use client";
 /** Create a project (optionally from a template or from existing working state, e.g. scratch). */
 import { X } from "lucide-react";
+import { useDismiss } from "@/lib/useDismiss";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errMsg } from "@/lib/api";
@@ -42,9 +43,10 @@ export function NewProjectDialog({ onClose, initialState, workspaceId, title = "
     } catch (e) { setError(errMsg(e)); setBusy(false); }
   }
 
+  useDismiss(true, onClose);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="panel w-full max-w-3xl space-y-4 p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
+      <div className="panel w-full max-w-3xl space-y-4 p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
         <div className="flex items-center justify-between"><h2 className="font-semibold">{title}</h2><button onClick={onClose} aria-label="Close"><X size={16} /></button></div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className="label" htmlFor="np-name">Project name</label><input id="np-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Resort booking — production" autoFocus /></div>

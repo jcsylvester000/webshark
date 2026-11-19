@@ -35,15 +35,19 @@ export default function Overview() {
   const [ws, setWs] = useState<WorkspaceSummary[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [ready, setReady] = useState(false);
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
   const lastRaw = useSyncExternalStore(noSub, () => localStorage.getItem(LAST_KEY), () => null);
   const last = useMemo(() => { try { return lastRaw ? (JSON.parse(lastRaw) as { id: string; name: string; at: string }) : null; } catch { return null; } }, [lastRaw]);
   useEffect(() => {
-    query<Profile>("profile").then(setMe).catch(() => null);
-    query<WorkspaceSummary[]>("workspaces").then(setWs).catch(() => null);
-    query<ProjectSummary[]>("projects?recent=8").then(setProjects).catch(() => null);
-    query<RunSummary[]>("runs").then(setRuns).catch(() => null);
+    // Render the lists together once everything has arrived, so nothing jumps around (layout shift).
+    Promise.allSettled([
+      query<Profile>("profile").then(setMe),
+      query<WorkspaceSummary[]>("workspaces").then(setWs),
+      query<ProjectSummary[]>("projects?recent=8").then(setProjects),
+      query<RunSummary[]>("runs").then(setRuns),
+    ]).then(() => setReady(true));
   }, []);
 
   const steps = me ? [
@@ -63,7 +67,7 @@ export default function Overview() {
     <div>
       <div className="border-b border-line px-6 py-6">
         <h1 className="text-2xl font-semibold">{greeting()}{name ? `, ${name.split(" ")[0]}` : ""} 👋</h1>
-        <p className="mt-1 text-sm text-muted">{me ? (active ? `You have ${active} active project${active === 1 ? "" : "s"} in ${ws.length} workspace${ws.length === 1 ? "" : "s"}${runs.length ? ` and ${runs.length} saved test run${runs.length === 1 ? "" : "s"}` : ""}.` : "Let's map and test your first environment.") : " "}</p>
+        <p className="mt-1 min-h-10 text-sm text-muted sm:min-h-5">{me ? (active ? `You have ${active} active project${active === 1 ? "" : "s"} in ${ws.length} workspace${ws.length === 1 ? "" : "s"}${runs.length ? ` and ${runs.length} saved test run${runs.length === 1 ? "" : "s"}` : ""}.` : "Let's map and test your first environment.") : " "}</p>
         <form className="mt-4 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); router.push(`/dashboard/workspaces?q=${encodeURIComponent(q)}`); }}>
           <div className="relative flex-1"><Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
             <input aria-label="Search projects" className="input pl-8" placeholder="Search all projects by name, description or tag…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
@@ -71,6 +75,7 @@ export default function Overview() {
         </form>
       </div>
 
+      {!ready ? <div className="grid gap-6 p-6 xl:grid-cols-3" aria-busy="true" aria-label="Loading your projects"><div className="h-[560px] animate-pulse rounded-lg bg-panel/60 xl:col-span-2" /><div className="h-[560px] animate-pulse rounded-lg bg-panel/60" /></div> :
       <div className="grid gap-6 p-6 xl:grid-cols-3">
         <section className="space-y-5 xl:col-span-2">
           {showChecklist && (
@@ -142,7 +147,7 @@ export default function Overview() {
             ))}
           </div>
         </section>
-      </div>
+      </div>}
       {creating && <NewProjectDialog onClose={() => setCreating(false)} />}
     </div>
   );

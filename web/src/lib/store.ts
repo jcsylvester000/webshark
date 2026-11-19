@@ -37,6 +37,13 @@ type Store = {
   applyDetails: (id: string, d: Partial<ProjectMeta>) => void;
 };
 
+// Project requests already on the way (see prefetchProject): open() reuses them instead of asking twice.
+const inflight = new Map<string, Promise<ProjectRow>>();
+/** Starts loading a project before React has finished starting up (called when the page module loads). */
+export function prefetchProject(id: string) {
+  if (!inflight.has(id)) inflight.set(id, api<ProjectRow>(`/queries/projects/${id}`));
+}
+
 const persistTabs = (tabs: Tab[]) => { try { localStorage.setItem(TABS_KEY, JSON.stringify(tabs)); } catch { /* storage unavailable */ } };
 const scratch = (): Loaded => ({ meta: { id: SCRATCH, workspaceId: null, workspaceName: "", name: "Scratch", description: "", template: null, status: "active", tags: [], stage: "none", pinned: false }, state: emptyState(), version: 0, savedAt: null, dirty: false, saving: false });
 
@@ -51,7 +58,9 @@ export const useProjects = create<Store>((set, get) => ({
 
   open: async (id) => {
     if (get().loaded[id]) return;
-    const row = await api<ProjectRow>(`/queries/projects/${id}`).catch((e: Error) => { set((s) => ({ errors: { ...s.errors, [id]: e.message } })); return null; });
+    const pending = inflight.get(id) ?? api<ProjectRow>(`/queries/projects/${id}`);
+    inflight.delete(id);
+    const row = await pending.catch((e: Error) => { set((s) => ({ errors: { ...s.errors, [id]: e.message } })); return null; });
     if (!row) return;
     const entry: Loaded = {
       meta: { id: row.id, workspaceId: row.workspace_id, workspaceName: row.workspace_name, name: row.name, description: row.description, template: row.template, status: row.status, tags: row.tags ?? [], stage: row.stage ?? "none", pinned: !!row.pinned },

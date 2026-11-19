@@ -44,8 +44,8 @@ function Dialog({ req, done }: { req: Req; done: () => void }) {
   const danger = req.kind === "confirm" && req.danger;
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4" onMouseDown={cancel}>
-      <form role="dialog" aria-modal="true" aria-labelledby="dlg-title" className="panel w-full max-w-md space-y-4 p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}
-        onSubmit={(e) => { e.preventDefault(); ok(); }} onKeyDown={(e) => e.key === "Escape" && cancel()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="dlg-title" className="panel w-full max-w-md p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}><form className="space-y-4"
+        onSubmit={(e) => { e.preventDefault(); ok(); }} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); cancel(); } }}>
         <div className="flex items-start gap-3">
           {danger && <AlertTriangle className="mt-0.5 shrink-0 text-danger" size={20} />}
           <div>
@@ -65,7 +65,7 @@ function Dialog({ req, done }: { req: Req; done: () => void }) {
           <button type="button" className="btn" onClick={cancel}>Cancel</button>
           <button type="submit" ref={req.kind === "confirm" && !req.typeToConfirm ? (first as React.RefObject<HTMLButtonElement>) : undefined} disabled={blocked} className={danger ? "btn-danger" : "btn-primary"}>{req.confirmText ?? (danger ? "Delete" : "OK")}</button>
         </div>
-      </form>
+      </form></div>
     </div>
   );
 }

@@ -93,7 +93,7 @@ function OperationView({ doc, o, projectId }: { doc: OpenApiDoc; o: OpRef; proje
         {body && Object.entries(body.content ?? {}).map(([ct, m]) => (
           <div key={ct}><h5 className="mb-1 text-xs uppercase tracking-wider text-muted">Request body · <span className="normal-case">{ct}</span>{body.required ? " · required" : ""}</h5>
             <SchemaView doc={doc} schema={m.schema} />
-            {m.example !== undefined && <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{typeof m.example === "string" ? m.example : JSON.stringify(m.example, null, 2)}</pre>}
+            {m.example !== undefined && <pre tabIndex={0} className="mt-2 max-h-56 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{typeof m.example === "string" ? m.example : JSON.stringify(m.example, null, 2)}</pre>}
           </div>
         ))}
         <div><h5 className="mb-1 text-xs uppercase tracking-wider text-muted">Responses</h5>
@@ -101,7 +101,7 @@ function OperationView({ doc, o, projectId }: { doc: OpenApiDoc; o: OpRef; proje
           {Object.entries(o.op.responses ?? {}).map(([c, raw]) => { const r = deref(doc, raw); const content = Object.entries(r?.content ?? {}); return (
             <details key={c} className="border-t border-line/50 py-1.5" open={c.startsWith("2") && content.length > 0}>
               <summary className="cursor-pointer text-sm"><span className={`mr-2 font-mono text-xs ${c.startsWith("2") ? "text-emerald-300" : c.startsWith("4") || c.startsWith("5") ? "text-red-400" : "text-sky-300"}`}>{c}</span>{r?.description}</summary>
-              {content.map(([ct, m]) => <div key={ct} className="mt-1 space-y-1 pl-4"><span className="text-xs text-muted">{ct}</span><SchemaView doc={doc} schema={m.schema} />{m.example !== undefined && <pre className="max-h-56 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{typeof m.example === "string" ? m.example : JSON.stringify(m.example, null, 2)}</pre>}</div>)}
+              {content.map(([ct, m]) => <div key={ct} className="mt-1 space-y-1 pl-4"><span className="text-xs text-muted">{ct}</span><SchemaView doc={doc} schema={m.schema} />{m.example !== undefined && <pre tabIndex={0} className="max-h-56 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{typeof m.example === "string" ? m.example : JSON.stringify(m.example, null, 2)}</pre>}</div>)}
             </details>
           ); })}
         </div>
@@ -110,7 +110,7 @@ function OperationView({ doc, o, projectId }: { doc: OpenApiDoc; o: OpRef; proje
             <div className="flex gap-1" role="tablist" aria-label="Code sample language">{(["cURL", "JavaScript", "Python"] as const).map((l) => <button key={l} role="tab" aria-selected={lang === l} className={`tab py-1 text-xs ${lang === l ? "tab-active" : ""}`} onClick={() => setLang(l)}>{l}</button>)}</div>
             <button className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-ink" onClick={async () => { await navigator.clipboard.writeText(code[lang]).catch(() => null); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check size={12} /> : <Copy size={12} />}{copied ? "Copied" : "Copy"}</button>
           </div>
-          <pre className="overflow-x-auto rounded-b-md bg-bg p-2 font-mono text-xs">{code[lang]}</pre>
+          <pre tabIndex={0} className="overflow-x-auto rounded-b-md bg-bg p-2 font-mono text-xs">{code[lang]}</pre>
         </div>
         {projectId && (trying ? <TryIt doc={doc} o={o} projectId={projectId} /> : <button className="btn" onClick={() => setTrying(true)}><Play size={14} />Try it</button>)}
       </div>

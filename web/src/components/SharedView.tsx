@@ -99,7 +99,7 @@ export function SharedView() {
             </ReactFlow>
           </ReactFlowProvider>
         </section>}
-        <section className="panel overflow-x-auto">
+        <section tabIndex={0} aria-label="Inventory" className="panel overflow-x-auto">
           <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="font-medium">Inventory ({assets.length})</h2>
             <ExportMenu small build={() => ({ title: `Inventory - ${data.project.name}`, meta: [["Project", data.project.name], ["Saved", new Date(data.project.savedAt).toLocaleString()]], sections: [{ heading: "Components", columns: [{ key: "label", label: "Component" }, { key: "type", label: "Type" }, { key: "target", label: "Host / URL" }, { key: "zone", label: "Zone" }, { key: "os", label: "OS" }, { key: "ports", label: "Ports" }, { key: "notes", label: "Notes" }], rows: assets.map((n) => ({ label: n.data.label, type: kindOf(n.data.kind).label, target: n.data.url || nodeTarget(n.data) || "", zone: n.data.zone ?? "", os: n.data.os ?? "", ports: n.data.ports ?? "", notes: n.data.notes ?? "" })) }] })} />
           </div>
@@ -108,7 +108,7 @@ export function SharedView() {
         </section>
         {data.notes && <section className="panel p-4"><h2 className="font-medium">Notes</h2><pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-muted">{data.notes}</pre></section>}
         {(() => { const lm = layoutModel({ name: data.project.name, description: "", savedAt: null, canvas: data.canvas, spec: null, asyncSpec: null, posture: null }); return lm.flows.length > 0 && (
-          <section className="panel overflow-x-auto" aria-label="Data flows">
+          <section tabIndex={0} className="panel overflow-x-auto" aria-label="Data flows">
             <div className="border-b border-line px-4 py-3"><h2 className="font-medium">Data flows ({lm.flows.length})</h2></div>
             <table className="w-full text-sm"><thead className="text-left text-xs uppercase tracking-wider text-muted"><tr><th className="px-4 py-2">From</th><th className="px-4 py-2">To</th><th className="px-4 py-2">Protocol / port</th><th className="px-4 py-2">Encrypted</th><th className="px-4 py-2">Purpose</th></tr></thead>
               <tbody>{lm.flows.map((f) => <tr key={f.id} className="border-t border-line/60"><td className="px-4 py-1.5">{f.from}<span className="block text-xs text-muted">{f.fromZone}</span></td><td className="px-4 py-1.5">{f.to}<span className="block text-xs text-muted">{f.toZone}</span></td><td className="px-4 py-1.5 font-mono text-xs">{f.protocol || "—"}{f.port ? `:${f.port}` : ""}</td><td className="px-4 py-1.5">{f.encrypted ? "yes" : "no"}</td><td className="px-4 py-1.5 text-muted">{f.label || "—"}</td></tr>)}</tbody></table>

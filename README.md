@@ -10,7 +10,7 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.8)
+## Features (v0.9)
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
   random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
   change their password, see and sign out sessions, and delete the account.
@@ -136,6 +136,10 @@ lets other devices on your network sign in over http. macOS/Linux: `./local/setu
 - Link-local and cloud-metadata addresses (169.254.0.0/16), multicast and unspecified addresses are
   always blocked. HTTP requests pin the resolved IP and re-check every redirect hop.
 - The console never runs shell commands. Every command maps to a fixed tool with validated input.
+- **v0.9 audit hardening:** sign-in/sign-up throttling (10 failures per account, 50 per address per
+  15 min; 20 sign-ups per address per hour), same-origin + JSON-only checks on every state-changing API
+  call, Content-Security-Policy and security headers on every response (local and Netlify), and
+  `Cache-Control: no-store` on all API responses.
 
 ## Project layout
 ```text

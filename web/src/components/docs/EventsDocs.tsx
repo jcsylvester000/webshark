@@ -4,8 +4,9 @@
  * Read-only reference + YAML/JSON source; drafted from queues on the diagram or imported.
  * Saved with the project like everything else.
  */
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, ListTree, Radio, Wand2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, ListTree, Radio, Wand2 , X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { useDismiss } from "@/lib/useDismiss";
 import { asyncFromCanvas, asyncMarkdown, validateAsync, viewOf, type AsyncView } from "@/lib/asyncapi";
 import { fileSlug } from "@/lib/export";
 import { parseDoc, toText } from "@/lib/openapi/io";
@@ -33,11 +34,15 @@ export function EventsDocs({ projectId }: { projectId: string }) {
   const [showIssues, setShowIssues] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenu(false), []);
+  useDismiss(menu, closeMenu, menuRef);
   if (!project) return null;
   const ev = project.state.docs.events;
   const spec = ev.spec;
   const set = (next: Record<string, unknown> | null, format = ev.format) => update(projectId, (s) => ({ ...s, docs: { ...s.docs, events: { spec: next, format, updatedAt: new Date().toISOString() } } }));
-  const flash = (tone: "ok" | "err", text: string) => { setNotice({ tone, text }); setTimeout(() => setNotice(null), 6000); };
+  // Messages stay until dismissed or replaced, so nobody misses them (no time limit).
+  const flash = (tone: "ok" | "err", text: string) => setNotice({ tone, text });
   const queues = project.state.canvas.nodes.filter((n) => ["queue", "cache"].includes(n.data.kind)).length;
 
   async function importFile(f: File) {
@@ -59,7 +64,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
           <h2 className="flex items-center gap-2 text-lg font-semibold"><Radio size={18} className="text-fin" />Event documentation<HelpTip>Some systems talk through messages instead of request/response: a service publishes an event to a topic or queue, and others consume it. AsyncAPI is the OpenAPI-style standard for describing those channels and message formats.</HelpTip></h2>
           <p className="mt-1 text-sm text-muted">Describe topics, queues and the messages that travel on them in <b className="text-ink">AsyncAPI</b>, the standard for event-driven APIs (Kafka, MQTT, RabbitMQ, WebSockets).</p>
         </div>
-        {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-fin/40 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
+        {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-fin/40 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}<button className="ml-2 align-middle text-muted hover:text-ink" aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={13} /></button></p>}
         <div className="grid gap-3 md:grid-cols-3">
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60 disabled:opacity-60" disabled={!queues} onClick={draft}><Wand2 className="text-fin" size={20} /><span className="font-medium">Draft from the diagram</span><span className="text-xs text-muted">{queues ? `Uses your ${queues} queue/cache component${queues === 1 ? "" : "s"} and the links into and out of them.` : "Add a Message Queue component to the diagram first."}</span></button>
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60" onClick={() => { set(structuredClone(EXAMPLE)); setView("edit"); }}><FilePlus2 className="text-fin" size={20} /><span className="font-medium">Start from an example</span><span className="text-xs text-muted">An AsyncAPI 3.0 document with one Kafka topic, ready to edit in a form.</span></button>
@@ -77,14 +82,14 @@ export function EventsDocs({ projectId }: { projectId: string }) {
     <div className="flex h-full min-h-0 flex-col">
       {fileInput}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
-        <div className="flex rounded-md border border-line p-0.5" role="group" aria-label="Events docs view">
+        <div className="flex max-w-full overflow-x-auto rounded-md border border-line p-0.5" role="group" aria-label="Events docs view">
           {([["reference", "Reference", <Radio key="r" size={14} />], ["edit", "Edit", <ListTree key="e" size={14} />], ["code", "YAML / JSON", <Code2 key="c" size={14} />]] as const).map(([k, l, icon]) => <button key={k} aria-pressed={view === k} className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${view === k ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(k)}>{icon}{l}</button>)}
         </div>
         <button title="Events check" aria-expanded={showIssues} onClick={() => setShowIssues(!showIssues)} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm ${errors ? "border-danger/50 text-danger" : warnings ? "border-amber-500/50 text-amber-300" : "border-fin/40 text-fin"}`}>{errors || warnings ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}{errors ? `${errors} error${errors === 1 ? "" : "s"}` : warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "Valid"}</button>
         <span className="chip">AsyncAPI {v.version || "?"}</span>
         <div className="ml-auto flex gap-2">
-          <button className="btn py-1" onClick={() => fileRef.current?.click()}><FileUp size={14} /><span className="hidden lg:inline">Import</span></button>
-          <div className="relative">
+          <button className="btn py-1" aria-label="Import AsyncAPI file" onClick={() => fileRef.current?.click()}><FileUp size={14} /><span className="hidden lg:inline">Import</span></button>
+          <div ref={menuRef} className="relative">
             <button className="btn py-1" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>Export<ChevronDown size={14} /></button>
             {menu && <div role="menu" className="panel absolute right-0 top-9 z-30 w-52 p-1 text-sm shadow-xl">
               <button role="menuitem" className="w-full rounded px-2.5 py-1.5 text-left hover:bg-panel-2" onClick={() => { setMenu(false); download(`${name}.asyncapi.yaml`, toText(spec as unknown as OpenApiDoc, "yaml"), "application/yaml"); }}>AsyncAPI YAML (.yaml)</button>
@@ -96,7 +101,7 @@ export function EventsDocs({ projectId }: { projectId: string }) {
           </div>
         </div>
       </div>
-      {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
+      {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}<button className="ml-2 align-middle text-muted hover:text-ink" aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={13} /></button></p>}
       {showIssues && <ul aria-label="Events check" className="max-h-48 shrink-0 overflow-y-auto border-b border-line bg-panel px-4 py-2 text-sm">{issues.length ? issues.map((i, n) => <li key={n} className="flex gap-2 py-0.5"><span className={i.level === "error" ? "text-danger" : i.level === "warning" ? "text-amber-300" : "text-fin"}>{i.level}</span>{i.message}</li>) : <li className="text-muted">No problems found.</li>}</ul>}
       <div className="min-h-0 flex-1">
         {view === "reference" ? <EventsReference v={v} raw={spec} /> : view === "edit" ? <AsyncEditor doc={spec} onChange={(d) => set(d)} /> : <CodeEditor doc={spec as unknown as OpenApiDoc} format={ev.format} onFormat={(f) => set(spec, f)} onChange={(d) => set(d as unknown as Record<string, unknown>)} />}
@@ -139,7 +144,7 @@ export function EventsReference({ v, raw, embedded }: { v: AsyncView; raw: Recor
                     <h4 className="text-sm font-medium">{m.title ?? m.name}{m.contentType && <span className="ml-2 text-xs font-normal text-muted">{m.contentType}</span>}</h4>
                     {m.summary && <p className="text-xs text-muted">{m.summary}</p>}
                     <SchemaView doc={doc} schema={m.payload} />
-                    {m.example !== undefined && <pre className="max-h-48 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{JSON.stringify(m.example, null, 2)}</pre>}
+                    {m.example !== undefined && <pre tabIndex={0} className="max-h-48 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{JSON.stringify(m.example, null, 2)}</pre>}
                   </div>
                 ))}
               </div>

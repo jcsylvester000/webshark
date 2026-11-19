@@ -122,6 +122,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-3 md:hidden">
           <button onClick={() => setDrawer(true)} aria-label="Open menu"><Menu size={20} /></button><Wordmark />
         </header>
+        {/* On a project page the bar always ends up with at least that project: reserve its space up front (no layout shift). */}
+        {tabs.length === 0 && path.startsWith("/dashboard/projects/") && <div className="h-9 shrink-0 border-b border-line bg-bg" aria-hidden />}
         {tabs.length > 0 && (
           <nav className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-line bg-bg px-2" aria-label="Open projects">
             {tabs.map((t) => {

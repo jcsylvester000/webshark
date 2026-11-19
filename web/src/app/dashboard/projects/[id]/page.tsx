@@ -4,27 +4,38 @@
  * edits the in-memory working state. "Save project" sends the `project.save` command.
  */
 import { AlertTriangle, ArchiveRestore, ChevronDown, History, Monitor, Pencil, RotateCcw, Save, Share2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Designer } from "@/components/designer/Designer";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { ApiClient } from "@/components/ApiClient";
-import { BatchTests } from "@/components/BatchTests";
-import { ApiDocs } from "@/components/docs/ApiDocs";
-import { SecurityReport } from "@/components/security/SecurityReport";
-import { LayoutDocs } from "@/components/LayoutDocs";
-import { Designer } from "@/components/designer/Designer";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dialogs } from "@/components/Dialogs";
 import { HistoryDrawer } from "@/components/HistoryDrawer";
 import { StageBadge, Tags } from "@/components/ProjectBadges";
 import { ProjectDetailsDialog } from "@/components/ProjectDetailsDialog";
-import { ResultsPanel } from "@/components/ResultsPanel";
-import { Scanner } from "@/components/Scanner";
 import { ShareDialog } from "@/components/ShareDialog";
-import { Terminal } from "@/components/Terminal";
 import { Time } from "@/components/Time";
 import { ApiError, errMsg } from "@/lib/api";
 import { command } from "@/lib/cqrs";
-import { useProjects } from "@/lib/store";
+import { prefetchProject, useProjects } from "@/lib/store";
+import { useDismiss } from "@/lib/useDismiss";
+
+// Start fetching the project as soon as this code arrives in the browser, before React starts up.
+if (typeof window !== "undefined") {
+  const m = /^\/dashboard\/projects\/([0-9a-f-]{36})/.exec(window.location.pathname);
+  if (m) prefetchProject(m[1]);
+}
+
+// The Design tab (the default) ships with the page; every other tab is loaded on first use.
+function TabLoading() { return <div className="p-6 text-sm text-muted" role="status">Loading…</div>; }
+const ApiClient = dynamic(() => import("@/components/ApiClient").then((m) => m.ApiClient), { loading: TabLoading });
+const BatchTests = dynamic(() => import("@/components/BatchTests").then((m) => m.BatchTests), { loading: TabLoading });
+const ApiDocs = dynamic(() => import("@/components/docs/ApiDocs").then((m) => m.ApiDocs), { loading: TabLoading });
+const SecurityReport = dynamic(() => import("@/components/security/SecurityReport").then((m) => m.SecurityReport), { loading: TabLoading });
+const LayoutDocs = dynamic(() => import("@/components/LayoutDocs").then((m) => m.LayoutDocs), { loading: TabLoading });
+const ResultsPanel = dynamic(() => import("@/components/ResultsPanel").then((m) => m.ResultsPanel), { loading: TabLoading });
+const Scanner = dynamic(() => import("@/components/Scanner").then((m) => m.Scanner), { loading: TabLoading });
+const Terminal = dynamic(() => import("@/components/Terminal").then((m) => m.Terminal), { loading: TabLoading });
 
 const TABS = [["design", "Design"], ["console", "Console"], ["api", "API client"], ["docs", "API docs"], ["scanner", "Scanner & audit"], ["batch", "Batch tests"], ["report", "Security report"], ["layout", "Layout docs"], ["results", "Results"], ["notes", "Notes"]] as const;
 type TabId = (typeof TABS)[number][0];
@@ -38,6 +49,9 @@ export default function ProjectPage() {
   const [visited, setVisited] = useState<Set<TabId>>(new Set(["design"]));
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [panel, setPanel] = useState<"details" | "history" | "share" | "saveMenu" | null>(null);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
+  const closeSaveMenu = useCallback(() => setPanel((p) => (p === "saveMenu" ? null : p)), []);
+  useDismiss(panel === "saveMenu", closeSaveMenu, saveMenuRef);
 
   useEffect(() => { open(id); }, [id, open]);
   useEffect(() => { if (project) document.title = `${project.dirty ? "• " : ""}${project.meta.name} · Slyshark`; }, [project]);
@@ -68,20 +82,26 @@ export default function ProjectPage() {
   }, [doSave]);
 
   if (loadError) return <div className="p-8"><p className="text-danger">{loadError === "Not found" ? "This project doesn't exist or was deleted." : loadError}</p><Link href="/dashboard/workspaces" className="text-fin">Back to workspaces</Link></div>;
-  if (!project) return <div className="p-8 text-sm text-muted">Opening project…</div>;
+  // Same shape as the loaded header + tabs, so nothing jumps when the project arrives.
+  if (!project) return (
+    <div className="flex h-full flex-col" aria-busy="true">
+      <div className="h-[145px] shrink-0 border-b border-line bg-panel px-4 py-2 md:h-[65px]"><p className="text-sm text-muted" role="status">Opening project…</p></div>
+      <div className="h-[39px] shrink-0 border-b border-line" />
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-panel px-4 py-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs text-muted">
-            <Link href={`/dashboard/workspaces?ws=${project.meta.workspaceId}`} className="hover:text-ink">{project.meta.workspaceName}</Link><span>/</span>
+            <Link href={`/dashboard/workspaces?ws=${project.meta.workspaceId}`} className="inline-flex min-h-6 items-center hover:text-ink">{project.meta.workspaceName}</Link><span>/</span>
             <StageBadge stage={project.meta.stage} /><Tags tags={project.meta.tags} />
           </div>
           <div className="flex items-center gap-2">
             <h1 className="sr-only">{project.meta.name}</h1>
             <input aria-label="Project name" size={Math.max(8, Math.min(48, project.meta.name.length + 1))} className="min-w-0 bg-transparent text-base font-semibold outline-none" value={project.meta.name} onChange={(e) => setMeta(id, { name: e.target.value })} />
-            <button className="text-muted hover:text-ink" title="Edit details: description, tags, stage" aria-label="Edit project details" onClick={() => setPanel("details")}><Pencil size={14} /></button>
+            <button className="grid h-6 w-6 place-items-center rounded text-muted hover:text-ink" title="Edit details: description, tags, stage" aria-label="Edit project details" onClick={() => setPanel("details")}><Pencil size={14} /></button>
           </div>
           {project.meta.description && <p className="line-clamp-1 text-xs text-muted" title={project.meta.description}>{project.meta.description}</p>}
         </div>
@@ -94,7 +114,7 @@ export default function ProjectPage() {
           <button className="btn" onClick={() => setPanel("share")} title="Share a read-only link"><Share2 size={14} /><span className="hidden lg:inline">Share</span></button>
           <button className="btn" disabled={!project.dirty} title="Discard unsaved changes"
             onClick={async () => { if (await dialogs.confirm({ title: "Discard unsaved changes?", message: "The project goes back to its last saved version.", confirmText: "Discard", danger: true })) reload(id); }}><RotateCcw size={14} /><span className="hidden lg:inline">Revert</span></button>
-          <div className="relative flex">
+          <div ref={saveMenuRef} className="relative flex">
             <button className="btn-primary rounded-r-none" onClick={() => doSave()} disabled={project.saving} title="Save project (Ctrl+S)"><Save size={14} />Save project</button>
             <button className="btn-primary rounded-l-none border-l border-bg/30 px-1.5" aria-label="More save options" aria-expanded={panel === "saveMenu"} onClick={() => setPanel(panel === "saveMenu" ? null : "saveMenu")}><ChevronDown size={14} /></button>
             {panel === "saveMenu" && <div className="panel absolute right-0 top-9 z-30 w-44 p-1 text-sm shadow-xl"><button className="w-full rounded px-2.5 py-1.5 text-left hover:bg-panel-2" onClick={saveWithNote}>Save with a note…</button></div>}
@@ -107,7 +127,7 @@ export default function ProjectPage() {
           <button className="btn ml-2 px-2 py-0.5 text-xs" onClick={async () => { await command("project.setStatus", { id, status: "active" }); reload(id); }}><ArchiveRestore size={12} />Restore</button>
         </div>
       )}
-      <div className="flex shrink-0 items-center gap-2 bg-panel/40 px-4 py-1.5 text-xs text-muted md:hidden"><Monitor size={13} />The designer works best on a larger screen; results, notes and sharing work here too.</div>
+      {tab === "design" && <div className="flex shrink-0 items-center gap-2 bg-panel/40 px-4 py-1.5 text-xs text-muted md:hidden"><Monitor size={13} />The designer works best on a larger screen; the other tabs work well here.</div>}
       <div className="flex shrink-0 overflow-x-auto border-b border-line px-2" role="tablist">
         {TABS.map(([t, label]) => <button key={t} role="tab" aria-selected={tab === t} className={`tab whitespace-nowrap ${tab === t ? "tab-active" : ""}`} onClick={() => go(t)}>{label}{t === "results" && project.state.results.length ? <span className="ml-1 text-muted">({project.state.results.length})</span> : null}</button>)}
       </div>

@@ -2,7 +2,7 @@
 import { METHODS, type Method, type OpenApiDoc, type Operation, type OpRef, type Parameter, type PathItem, type Schema, type SecurityRequirement, type SecurityScheme } from "./types";
 
 export const DEFAULT_VERSION = "3.1.0";
-export const VERSIONS = [{ value: "3.1.0", label: "OpenAPI 3.1 (widest tool support)" }, { value: "3.2.0", label: "OpenAPI 3.2 (newest features)" }] as const;
+export const VERSIONS = [{ value: "3.1.0", label: "OpenAPI 3.1" }, { value: "3.2.0", label: "OpenAPI 3.2 (newer)" }] as const;
 export const is32 = (doc: OpenApiDoc) => /^3\.2\./.test(doc.openapi);
 export const methodsFor = (doc: OpenApiDoc): Method[] => METHODS.filter((m) => m !== "query" || is32(doc));
 

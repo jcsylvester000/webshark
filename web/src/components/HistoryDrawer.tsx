@@ -1,6 +1,7 @@
 "use client";
 /** Save history: the last 10 saves with notes; restoring creates a new save (nothing is lost). */
 import { History, RotateCcw, X } from "lucide-react";
+import { useDismiss } from "@/lib/useDismiss";
 import { useEffect, useState } from "react";
 import { errMsg } from "@/lib/api";
 import { command, query } from "@/lib/cqrs";
@@ -23,10 +24,11 @@ export function HistoryDrawer({ projectId, onClose }: { projectId: string; onClo
     try { await command("project.restoreVersion", { id: projectId, version: v.version }); await reload(projectId); onClose(); }
     catch (e) { setError(errMsg(e)); }
   }
+  useDismiss(true, onClose);
   return (
     <div className="fixed inset-0 z-40" onClick={onClose}>
-      <aside role="dialog" aria-label="Save history" className="absolute right-0 top-0 flex h-full w-full max-w-sm flex-col border-l border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="flex items-center gap-2 font-medium"><History size={16} />Save history</h2><button onClick={onClose} aria-label="Close history"><X size={16} /></button></div>
+      <div role="dialog" aria-modal="true" aria-label="Save history" className="absolute right-0 top-0 flex h-full w-full max-w-sm flex-col border-l border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="flex items-center gap-2 font-medium"><History size={16} />Save history</h2><button onClick={onClose} aria-label="Close history" autoFocus><X size={16} /></button></div>
         <p className="px-4 pt-3 text-xs text-muted">Your last 10 saves. Add a note when saving to remember what changed.</p>
         {error && <p role="alert" className="mx-4 mt-2 text-sm text-danger">{error}</p>}
         <ol className="flex-1 overflow-y-auto p-2">
@@ -40,7 +42,7 @@ export function HistoryDrawer({ projectId, onClose }: { projectId: string; onClo
           ))}
           {versions?.length === 0 && <li className="p-3 text-sm text-muted">No saves yet.</li>}
         </ol>
-      </aside>
+      </div>
     </div>
   );
 }

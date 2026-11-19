@@ -2,9 +2,9 @@
 import { nodeTarget } from "./nodes";
 import { uid, type BatchRun, type Scenario, type Step } from "./batch";
 import type { ApiDocState } from "./openapi/types";
-import { emptySecurity, normalizeSecurity, type SecurityState } from "./security/assessment";
+import { emptySecurity, normalizeSecurity, type SecurityState } from "./security/state";
 import type { AsyncDocState } from "./asyncapi";
-import { emptyLayout, normalizeLayout, type LayoutSettings } from "./layout";
+import { emptyLayout, normalizeLayout, type LayoutSettings } from "./layoutState";
 import type { AuditReport, Canvas, HttpRequestSpec, KeyValue, ScanResponse } from "./types";
 
 /** `sample` is the last response captured in the API client; it feeds examples in the API docs draft. */

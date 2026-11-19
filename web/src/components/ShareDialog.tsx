@@ -3,6 +3,7 @@
 import { Check, Copy, Link2, Lock, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { errMsg } from "@/lib/api";
+import { useDismiss } from "@/lib/useDismiss";
 import { command, query } from "@/lib/cqrs";
 import { dialogs } from "./Dialogs";
 import { HelpTip } from "./HelpTip";
@@ -26,6 +27,7 @@ export function ShareDialog({ projectId, dirty, onClose }: { projectId: string; 
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => query<Share[]>(`projects/${projectId}/shares`).then(setShares).catch((e) => setError(errMsg(e))), [projectId]);
   useEffect(() => { load(); }, [load]);
+  useDismiss(true, onClose);
 
   async function create() {
     setError(null);
@@ -39,7 +41,7 @@ export function ShareDialog({ projectId, dirty, onClose }: { projectId: string; 
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onMouseDown={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Share project" className="panel max-h-[90vh] w-full max-w-xl overflow-y-auto p-5" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label="Share project" className="panel max-h-[90vh] w-full max-w-xl overflow-y-auto p-5" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 font-semibold"><Link2 size={17} />Share a read-only link</h2><button onClick={onClose} aria-label="Close"><X size={16} /></button></div>
         <p className="mt-1 text-sm text-muted">Anyone with the link (and password, if set) can view the <b className="text-ink">last saved</b> diagram, inventory{notes ? ", notes" : ""}{apiDocs ? ", API reference" : ""}{report ? ", security report" : ""}{runs ? " and saved test runs" : ""}. API client requests, tokens and variables are never shared.</p>
         {dirty && <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">You have unsaved changes. Save the project first if you want them included.</p>}
@@ -53,7 +55,7 @@ export function ShareDialog({ projectId, dirty, onClose }: { projectId: string; 
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            <div><label className="label" htmlFor="sh-label">Label (only you see this)</label><input id="sh-label" className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. For instructor, Client review" maxLength={80} /></div>
+            <div><label className="label" htmlFor="sh-label">Label (only you see this)</label><input id="sh-label" autoFocus className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. For instructor, Client review" maxLength={80} /></div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={protect} onChange={(e) => setProtect(e.target.checked)} /><Lock size={14} />Require a password <HelpTip>Viewers must enter this password before seeing anything. After 10 wrong attempts the link locks for 15 minutes.</HelpTip></label>
             {report && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">The security report lists weaknesses and how to reach them. Share it only with people who should fix or review them{protect ? "" : ", and keep a password on the link"}.</p>}
             {protect && <div><label className="label" htmlFor="sh-pw">Password</label><PasswordInput id="sh-pw" autoComplete="new-password" minLength={6} meter value={password} onChange={setPassword} /></div>}

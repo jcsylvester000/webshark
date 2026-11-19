@@ -16,6 +16,7 @@ import { api, errMsg } from "@/lib/api";
 import { canvasToMarkdown, download } from "@/lib/docs";
 import { scanPorts } from "@/lib/scan";
 import { stableJson } from "@/lib/stable";
+import { useDismiss } from "@/lib/useDismiss";
 import { useProjects } from "@/lib/store";
 import { GROUPS, kindOf, nodeTarget, NODE_KINDS } from "@/lib/nodes";
 import { TEMPLATES } from "@/lib/templates";
@@ -61,6 +62,9 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
   const [menu, setMenu] = useState<"templates" | "export" | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  useDismiss(menu !== null, closeMenu, menuRef);
 
   useEffect(() => { const t = setTimeout(() => flow.fitView({ padding: 0.2 }), 50); return () => clearTimeout(t); }, [flow]);
 
@@ -206,9 +210,9 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
         <span className="hidden text-xs text-muted lg:inline">Drag components from the left · drag between edges to connect · select + Delete to remove · hover a component for what it does</span>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div ref={menuRef} className="ml-auto flex items-center gap-1.5">
           <div className="relative">
-            <button className="btn" onClick={() => setMenu(menu ? null : "templates")}><LayoutTemplate size={14} />Templates<ChevronDown size={13} /></button>
+            <button className="btn" aria-haspopup="menu" aria-expanded={menu === "templates"} onClick={() => setMenu(menu ? null : "templates")}><LayoutTemplate size={14} />Templates<ChevronDown size={13} /></button>
             {menu === "templates" && (
               <div className="panel absolute right-0 z-50 mt-1 w-72 p-1 shadow-xl">
                 {TEMPLATES.map((t) => <button key={t.id} onClick={() => applyTemplate(t.id)} className="block w-full rounded px-3 py-2 text-left hover:bg-panel-2"><div className="text-sm">{t.name}</div><div className="text-xs text-muted">{t.description}</div></button>)}

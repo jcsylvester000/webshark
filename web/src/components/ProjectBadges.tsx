@@ -12,7 +12,7 @@ export function Tags({ tags, onClick }: { tags: string[]; onClick?: (t: string) 
   return (
     <span className="flex flex-wrap gap-1">
       {tags.map((t) => onClick
-        ? <button key={t} type="button" className="chip hover:border-fin/50 hover:text-fin" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(t); }}>#{t}</button>
+        ? <button key={t} type="button" className="chip min-h-6 hover:border-fin/50 hover:text-fin" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(t); }}>#{t}</button>
         : <span key={t} className="chip">#{t}</span>)}
     </span>
   );

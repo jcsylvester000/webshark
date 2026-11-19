@@ -11,14 +11,8 @@ import type { OpenApiDoc } from "./openapi/types";
 import { viewOf } from "./asyncapi";
 import type { Canvas, CanvasNode } from "./types";
 
-export const LAYOUT_SECTIONS = [
-  { id: "overview", title: "Overview" }, { id: "zones", title: "Trust zones" }, { id: "inventory", title: "Inventory" },
-  { id: "flows", title: "Data flows" }, { id: "apis", title: "APIs and events" }, { id: "security", title: "Security posture" },
-] as const;
-export type SectionId = (typeof LAYOUT_SECTIONS)[number]["id"];
-export type LayoutSettings = { title: string; version: string; intro: Partial<Record<SectionId, string>>; include: Record<SectionId, boolean> };
-export const emptyLayout = (): LayoutSettings => ({ title: "", version: "1.0", intro: {}, include: { overview: true, zones: true, inventory: true, flows: true, apis: true, security: true } });
-export const normalizeLayout = (raw: Partial<LayoutSettings> | undefined): LayoutSettings => ({ ...emptyLayout(), ...raw, intro: { ...raw?.intro }, include: { ...emptyLayout().include, ...raw?.include } });
+export { emptyLayout, LAYOUT_SECTIONS, normalizeLayout, type LayoutSettings, type SectionId } from "./layoutState";
+import type { LayoutSettings, SectionId } from "./layoutState";
 
 const SKIP = new Set(["note", "attacker", "vulnerability"]);
 const API_KINDS = new Set(["api", "webapp", "serverless", "loadbalancer", "vercel", "netlify", "aws", "forge", "kubernetes", "container", "server"]);

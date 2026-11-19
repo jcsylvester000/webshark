@@ -41,7 +41,7 @@ export function ProjectDetailsDialog({ project, onClose, onSaved }: { project: D
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onMouseDown={onClose}>
-      <form role="dialog" aria-modal="true" aria-label="Project details" className="panel w-full max-w-lg space-y-3 p-5" onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); save(); }} onKeyDown={(e) => e.key === "Escape" && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label="Project details" className="panel w-full max-w-lg p-5" onMouseDown={(e) => e.stopPropagation()}><form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save(); }} onKeyDown={(e) => e.key === "Escape" && onClose()}>
         <div className="flex items-center justify-between"><h2 className="font-semibold">Project details</h2><button type="button" onClick={onClose} aria-label="Close"><X size={16} /></button></div>
         <div><label className="label" htmlFor="pd-name">Name</label><input id="pd-name" className="input" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} required maxLength={120} autoFocus /></div>
         <div><label className="label" htmlFor="pd-desc">Description</label><textarea id="pd-desc" className="input min-h-24" value={d.description} maxLength={1000} onChange={(e) => setD({ ...d, description: e.target.value })} placeholder="What is this environment? Who owns it? What is in scope for testing?" /></div>
@@ -52,7 +52,7 @@ export function ProjectDetailsDialog({ project, onClose, onSaved }: { project: D
         </div>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={busy}>{busy ? "Saving…" : "Save details"}</button></div>
-      </form>
+      </form></div>
     </div>
   );
 }

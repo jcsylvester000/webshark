@@ -90,7 +90,7 @@ export function TryIt({ doc, o, projectId }: { doc: OpenApiDoc; o: OpRef; projec
               {expected.includes(String(res.status)) || expected.includes(`${String(res.status)[0]}XX`) ? "matches the documented responses" : expected.includes("default") ? "covered by “default”" : `not documented: add a ${res.status} response`}
             </span>
           </div>
-          <pre className="max-h-72 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{res.is_binary ? `Binary response (${res.size_bytes} bytes)` : pretty(res.body) || "(empty body)"}</pre>
+          <pre tabIndex={0} className="max-h-72 overflow-auto rounded-md border border-line bg-bg p-2 font-mono text-xs">{res.is_binary ? `Binary response (${res.size_bytes} bytes)` : pretty(res.body) || "(empty body)"}</pre>
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 /** POST /api/auth/register — create an account, then sign in (session cookie). */
+import { assertNotThrottled, recordAttempt } from "@/server/throttle";
 import { NextResponse, type NextRequest } from "next/server";
 import { cookieOptions, createSession, hashPassword, SESSION_COOKIE } from "@/server/auth";
 import { sql } from "@/server/db";
@@ -7,6 +8,7 @@ import { validEmail, validUsername } from "@/server/validate";
 import { userJson } from "@/server/users";
 
 export const POST = handle(async (req: NextRequest) => {
+  await assertNotThrottled("register", req);
   const b = await readJson<{ username?: string; email?: string; password?: string; display_name?: string }>(req);
   const username = (b.username ?? "").trim().toLowerCase();
   const email = (b.email ?? "").trim().toLowerCase();
@@ -21,6 +23,7 @@ export const POST = handle(async (req: NextRequest) => {
     VALUES (${username}, ${email}, ${display}, ${await hashPassword(password)}) RETURNING id`;
   // Starter workspace so a new user's first "New project" has a home.
   await sql`INSERT INTO workspaces (owner_id, name, description) VALUES (${u.id}, 'My Workspace', 'Your first workspace. Rename it or add more anytime.')`;
+  await recordAttempt("register", req);
   const token = await createSession(u.id, req.headers.get("user-agent"));
   const res = NextResponse.json({ user: await userJson(u.id) });
   res.cookies.set(SESSION_COOKIE, token, cookieOptions());

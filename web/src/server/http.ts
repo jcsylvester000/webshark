@@ -17,7 +17,12 @@ export const conflict = (m: string) => new AppError(409, "conflict", m);
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
-      return await fn(...args);
+      const req = args[0];
+      if (req instanceof Request && !["GET", "HEAD", "OPTIONS"].includes(req.method)) assertSameOrigin(req);
+      const res = await fn(...args);
+      // API data is per-user: never let browsers or proxies cache it.
+      if (!res.headers.has("cache-control")) res.headers.set("cache-control", "no-store");
+      return res;
     } catch (e) {
       // Let Next.js internal control-flow errors (dynamic bail-out, redirects) propagate.
       unstable_rethrow(e);
@@ -32,7 +37,22 @@ export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response
   };
 }
 
+/**
+ * CSRF defence in depth (on top of SameSite=Lax cookies): state-changing requests must come from
+ * this site. Browsers always send Origin on cross-site POSTs; same-origin fetches send a matching one.
+ */
+export function assertSameOrigin(req: Request) {
+  const origin = req.headers.get("origin");
+  if (!origin) return; // non-browser clients (curl, scripts) don't send Origin and don't carry a victim's cookie
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  let o: string;
+  try { o = new URL(origin).host; } catch { throw forbidden("Cross-site request blocked"); }
+  if (!host || o !== host) throw forbidden("Cross-site request blocked");
+}
+
 export async function readJson<T>(req: Request): Promise<T> {
+  const ct = req.headers.get("content-type") ?? "";
+  if (!ct.toLowerCase().includes("application/json")) throw new AppError(415, "unsupported_media_type", "Send the request body as application/json");
   try {
     return (await req.json()) as T;
   } catch {

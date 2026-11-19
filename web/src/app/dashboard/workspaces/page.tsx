@@ -16,6 +16,7 @@ import { Time } from "@/components/Time";
 import { errMsg } from "@/lib/api";
 import { command, query, STAGES, type ProjectSummary, type WorkspaceSummary } from "@/lib/cqrs";
 import { useProjects } from "@/lib/store";
+import { useDismiss } from "@/lib/useDismiss";
 
 const COLORS = ["#2ee6c5", "#60a5fa", "#a78bfa", "#f472b6", "#f59e0b", "#4ade80", "#f87171"];
 
@@ -28,6 +29,8 @@ export default function WorkspacesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Details | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const closeCardMenu = useCallback(() => setMenu(null), []);
+  useDismiss(menu !== null, closeCardMenu);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const closeProject = useProjects((s) => s.close);
@@ -46,10 +49,9 @@ export default function WorkspacesPage() {
     router.replace(`/dashboard/workspaces${u.toString() ? `?${u}` : ""}`);
   };
 
-  const loadWs = useCallback(() => Promise.all([
-    query<WorkspaceSummary[]>("workspaces").then(setWorkspaces),
-    query<{ tag: string; count: number }[]>("tags").then(setTags),
-  ]).catch((e) => setError(errMsg(e))), []);
+  // Workspaces and tags are applied together so the sidebar doesn't grow in two steps (layout shift).
+  const loadWs = useCallback(() => Promise.all([query<WorkspaceSummary[]>("workspaces"), query<{ tag: string; count: number }[]>("tags")])
+    .then(([w, t]) => { setWorkspaces(w); setTags(t); }).catch((e) => setError(errMsg(e))), []);
   const loadProjects = useCallback(() => {
     const u = new URLSearchParams({ status, sort });
     if (selected !== "all") u.set("workspaceId", selected);
@@ -91,6 +93,7 @@ export default function WorkspacesPage() {
       </PageHeader>
       {error && <p role="alert" className="mx-6 mt-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       {notice && <p role="status" className="mx-6 mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">{notice}</p>}
+      {(workspaces === null || projects === null) && !error ? <div className="grid gap-6 p-6 lg:grid-cols-[260px_1fr]" aria-busy="true" aria-label="Loading workspaces"><div className="h-64 animate-pulse rounded-lg bg-panel/60" /><div className="h-[480px] animate-pulse rounded-lg bg-panel/60" /></div> :
       <div className="grid gap-6 p-6 lg:grid-cols-[260px_1fr]">
         <aside className="space-y-4">
           <nav className="panel" aria-label="Workspaces">
@@ -104,7 +107,7 @@ export default function WorkspacesPage() {
           </nav>
           {tags.length > 0 && (
             <div className="panel p-3"><div className="label">Tags</div>
-              <div className="flex flex-wrap gap-1">{tags.map((t) => <button key={t.tag} onClick={() => setParam({ tag: tag === t.tag ? null : t.tag })} className={`chip ${tag === t.tag ? "border-fin text-fin" : "hover:text-ink"}`}>#{t.tag} <span className="opacity-60">{t.count}</span></button>)}</div></div>
+              <div className="flex flex-wrap gap-1">{tags.map((t) => <button key={t.tag} onClick={() => setParam({ tag: tag === t.tag ? null : t.tag })} className={`chip min-h-6 ${tag === t.tag ? "border-fin text-fin" : "hover:text-ink"}`} aria-pressed={tag === t.tag}>#{t.tag} <span>{t.count}</span></button>)}</div></div>
           )}
         </aside>
 
@@ -183,7 +186,7 @@ export default function WorkspacesPage() {
             </div>
           )}
         </section>
-      </div>
+      </div>}
       {creating && <NewProjectDialog workspaceId={selected !== "all" ? selected : undefined} onClose={() => setCreating(false)} />}
       {editing && <ProjectDetailsDialog project={editing} onClose={() => setEditing(null)} onSaved={() => { loadProjects(); loadWs(); }} />}
     </div>

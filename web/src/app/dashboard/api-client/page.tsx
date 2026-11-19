@@ -7,6 +7,7 @@ import { SCRATCH } from "@/lib/store";
 export default function ApiClientPage() {
   return (
     <div className="flex h-full flex-col">
+      <h1 className="sr-only">API client</h1>
       <ScratchBanner />
       <div className="min-h-0 flex-1"><ApiClient projectId={SCRATCH} /></div>
     </div>

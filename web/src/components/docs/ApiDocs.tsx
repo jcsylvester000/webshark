@@ -4,8 +4,9 @@
  * guided form or as YAML/JSON, and read as an interactive reference with Try it. Everything lives
  * in the project's working state and is stored only when the user clicks "Save project".
  */
-import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, Grid3x3, ListTree, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, Grid3x3, ListTree, ShieldCheck, Sparkles, Wand2 , X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useDismiss } from "@/lib/useDismiss";
 import { exportCsv, exportPdf, fileSlug } from "@/lib/export";
 import { generateSpec } from "@/lib/openapi/generate";
 import { apiReport, parseDoc, toMarkdown, toText } from "@/lib/openapi/io";
@@ -55,6 +56,9 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [focus, setFocus] = useState<{ key: string | null; n: number }>({ key: null, n: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenu(false), []);
+  useDismiss(menu, closeMenu, menuRef);
   const docState = project?.state.docs.api;
   const spec = docState?.spec ?? null;
   const issues = useMemo(() => (spec ? validate(spec) : []), [spec]);
@@ -64,7 +68,8 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
 
   const setSpec = (next: OpenApiDoc | null) => update(projectId, (s) => ({ ...s, docs: { ...s.docs, api: { ...s.docs.api, spec: next, updatedAt: new Date().toISOString() } } }));
   const setFormat = (format: "yaml" | "json") => update(projectId, (s) => ({ ...s, docs: { ...s.docs, api: { ...s.docs.api, format } } }));
-  const flash = (tone: "ok" | "err", text: string) => { setNotice({ tone, text }); setTimeout(() => setNotice(null), 6000); };
+  // Messages stay until dismissed or replaced, so nobody misses them (no time limit).
+  const flash = (tone: "ok" | "err", text: string) => setNotice({ tone, text });
 
   function generate() {
     const r = generateSpec({ title: project.meta.name, description: project.meta.description, requests, variables: project.state.api.variables, canvas: project.state.canvas, existing: spec });
@@ -122,7 +127,7 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
           <h2 className="flex items-center gap-2 text-lg font-semibold"><BookOpen size={18} className="text-fin" />API documentation</h2>
           <p className="mt-1 text-sm text-muted">Describe your API&apos;s endpoints, parameters, responses and authentication in <b className="text-ink">OpenAPI</b>, the standard format behind Swagger. Other tools (Swagger UI, Postman, code generators, security scanners) can read the file you export.</p>
         </div>
-        {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-fin/40 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
+        {notice && <p role="status" className={`rounded-md border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-fin/40 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}<button className="ml-2 align-middle text-muted hover:text-ink" aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={13} /></button></p>}
         <div className="grid gap-3 md:grid-cols-3">
           <button className="panel flex flex-col items-start gap-2 p-4 text-left hover:border-fin/60 disabled:opacity-60" disabled={!requests.length} onClick={generate}>
             <Wand2 className="text-fin" size={20} /><span className="font-medium">Generate from API client</span>
@@ -145,7 +150,7 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
     <div className="flex h-full min-h-0 flex-col">
       {fileInput}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
-        <div className="flex rounded-md border border-line p-0.5" role="group" aria-label="API docs view">
+        <div className="flex max-w-full overflow-x-auto rounded-md border border-line p-0.5" role="group" aria-label="API docs view">
           {views.map(([v, label, icon]) => <button key={v} aria-pressed={view === v} className={`flex items-center gap-1.5 whitespace-nowrap rounded px-2.5 py-1 text-sm ${view === v ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(v)}>{icon}{label}</button>)}
         </div>
         <button className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm ${counts.errors ? "border-danger/50 text-danger" : counts.warnings ? "border-amber-500/50 text-amber-300" : "border-fin/40 text-fin"}`} aria-expanded={showIssues} title="Documentation check" onClick={() => setShowIssues(!showIssues)}>
@@ -155,13 +160,13 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
         </button>
         <HelpTip>The checker reads your document like other OpenAPI tools would. Errors stop tools from reading it; warnings are likely mistakes or security risks; tips make the docs clearer for readers.</HelpTip>
         <label className="sr-only" htmlFor="oas-version">OpenAPI version</label>
-        <select id="oas-version" className="input ml-auto w-auto py-1 text-xs" value={is32(spec) ? "3.2.0" : /^3\.0/.test(spec.openapi) ? spec.openapi : "3.1.0"} onChange={(e) => setSpec({ ...spec, openapi: e.target.value })}>
+        <select id="oas-version" title="3.1 has the widest tool support; 3.2 adds newer features (QUERY method, nested tags)" className="input ml-auto w-auto py-1 text-xs" value={is32(spec) ? "3.2.0" : /^3\.0/.test(spec.openapi) ? spec.openapi : "3.1.0"} onChange={(e) => setSpec({ ...spec, openapi: e.target.value })}>
           {/^3\.0/.test(spec.openapi) && <option value={spec.openapi}>OpenAPI {spec.openapi} (imported)</option>}
           {VERSIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
         </select>
-        <button className="btn py-1" onClick={generate} disabled={!requests.length} title={requests.length ? "Add endpoints for saved requests that aren't documented yet" : "Save requests in the API client first"}><Sparkles size={14} /><span className="hidden lg:inline">Update from API client</span></button>
-        <button className="btn py-1" onClick={() => fileRef.current?.click()}><FileUp size={14} /><span className="hidden lg:inline">Import</span></button>
-        <div className="relative">
+        <button className="btn py-1" aria-label="Update from API client" onClick={generate} disabled={!requests.length} title={requests.length ? "Add endpoints for saved requests that aren't documented yet" : "Save requests in the API client first"}><Sparkles size={14} /><span className="hidden lg:inline">Update from API client</span></button>
+        <button className="btn py-1" aria-label="Import OpenAPI, Swagger 2.0, AsyncAPI or Overlay file" title="Import OpenAPI, Swagger 2.0, AsyncAPI or Overlay file" onClick={() => fileRef.current?.click()}><FileUp size={14} /><span className="hidden lg:inline">Import</span></button>
+        <div ref={menuRef} className="relative">
           <button className="btn py-1" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu(!menu)}>Export<ChevronDown size={14} /></button>
           {menu && (
             <div role="menu" className="panel absolute right-0 top-9 z-30 w-56 p-1 text-sm shadow-xl">
@@ -176,7 +181,7 @@ function RestDocs({ projectId, onOpenReport, onEvents }: { projectId: string; on
           )}
         </div>
       </div>
-      {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}</p>}
+      {notice && <p role="status" className={`shrink-0 border-b px-4 py-1.5 text-sm ${notice.tone === "ok" ? "border-fin/30 bg-fin/5" : "border-danger/40 bg-danger/10 text-danger"}`}>{notice.text}<button className="ml-2 align-middle text-muted hover:text-ink" aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={13} /></button></p>}
       {isSwagger2(spec) && <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">This is Swagger 2.0, the older format. Convert it to OpenAPI 3.1 to edit, check and render it.<button className="btn ml-auto py-1 text-xs" onClick={() => { const c = convertSwagger2(spec); setSpec(c.doc); flash("ok", `Converted to OpenAPI 3.1: ${ops(c.doc).length} endpoints.${c.notes.length ? ` Check: ${c.notes.slice(0, 2).join(" ")}` : ""}`); }}>Convert to OpenAPI 3.1</button></div>}
       {showIssues && <IssuesPanel issues={issues} onClose={() => setShowIssues(false)} onGo={(key) => { if (key) { setFocus((f) => ({ key, n: f.n + 1 })); setView("edit"); } setShowIssues(false); }} />}
       <div className="min-h-0 flex-1">
