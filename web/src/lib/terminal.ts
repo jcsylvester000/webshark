@@ -3,6 +3,7 @@
  * the Rust API (no shell access on the server). Output is a list of styled lines.
  */
 import { api, errMsg } from "./api";
+import { scanPorts } from "./scan";
 import type { AuditReport, HttpResponse, HttpRequestSpec, PingResponse, ScanResponse } from "./types";
 
 export type Line = { text: string; tone?: "ok" | "err" | "warn" | "dim" | "accent" | "cmd" };
@@ -22,10 +23,10 @@ export function tokenize(input: string): string[] {
 
 const HELP: Line[] = [
   { text: "Slyshark console — commands run through the Slyshark API", tone: "accent" },
-  { text: "  ping <host> [-c 4] [--tcp] [-p 443]    ICMP ping (falls back to TCP connect)" },
+  { text: "  ping <host> [-c 4] [-p 443]           TCP-connect ping (ICMP is not available on serverless hosts)" },
   { text: "  tcping <host> <port> [-c 4]           TCP connect latency to a port" },
-  { text: "  scan <host> [ports] -y                Port scan. ports: common | web | db | 1-1024 | 22,80,443" },
-  { text: "  dns <host>  (alias nslookup, dig)     Resolve A/AAAA records" },
+  { text: "  scan <host> [ports] -y                Port scan. ports: common | web | db | well-known | 22,80,443 | 8000-8100" },
+  { text: "  dns <host>  (alias nslookup, dig)     A, AAAA, CNAME, MX, NS, TXT records" },
   { text: "  curl [-X M] [-H 'k: v'] [-d body] [--bearer T] [-u user:pass] [-i] [-I] <url>" },
   { text: "  headers <url>                         Show response headers" },
   { text: "  audit <url> -y                        Security header / misconfiguration audit" },
@@ -77,11 +78,11 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
       case "ping": case "tcping": {
         const count = Number(flag(args, "-c", flag(args, "-n", "4")));
         let port = flag(args, "-p");
-        const tcp = bool(args, "--tcp", "-T") || cmd === "tcping";
+        bool(args, "--tcp", "-T");
         const host = args[0] ? resolveTarget(args[0], ctx) : "";
         if (!host) return [{ text: `usage: ${cmd} <host>${cmd === "tcping" ? " <port>" : ""}`, tone: "err" }];
         if (cmd === "tcping") port = args[1] ?? port ?? "443";
-        const r = await api<PingResponse>("/tools/ping", { method: "POST", json: { host, count, mode: tcp ? "tcp" : "auto", port: port ? Number(port) : undefined } });
+        const r = await api<PingResponse>("/tools/ping", { method: "POST", json: { host, count, port: port ? Number(port) : undefined } });
         ctx.onPing?.(host, r);
         const out: Line[] = [{ text: `PING ${r.host} (${r.address}) via ${r.mode.toUpperCase()}${r.port ? ` port ${r.port}` : ""}`, tone: "accent" }];
         for (const a of r.attempts) {
@@ -95,7 +96,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
         const host = args[0] ? resolveTarget(args[0], ctx) : "";
         if (!host) return [{ text: "usage: scan <host> [ports] -y", tone: "err" }];
         if (!yes) return [{ text: "Add -y to confirm you own this host or have written permission to scan it.", tone: "warn" }];
-        const r = await api<ScanResponse>("/tools/portscan", { method: "POST", json: { target: host, ports: args[1] ?? "common", authorized: true } });
+        const r: ScanResponse = await scanPorts(host, args[1] ?? "common");
         ctx.onScan?.(host, r);
         const out: Line[] = [{ text: `Scanned ${r.scanned} ports on ${r.target} (${r.address}) in ${r.duration_ms} ms`, tone: "accent" }, { text: "PORT      STATE  SERVICE               BANNER", tone: "dim" }];
         for (const p of r.open) {
@@ -107,8 +108,9 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
       }
       case "dns": case "nslookup": case "dig": case "host": {
         if (!args[0]) return [{ text: "usage: dns <host>", tone: "err" }];
-        const r = await api<{ host: string; a: string[]; aaaa: string[]; time_ms: number }>("/tools/dns", { method: "POST", json: { host: resolveTarget(args[0], ctx) } });
-        return [{ text: `${r.host} (${r.time_ms} ms)`, tone: "accent" }, ...r.a.map((a) => ({ text: `  A     ${a}` })), ...r.aaaa.map((a) => ({ text: `  AAAA  ${a}` }))];
+        const r = await api<{ host: string; a: string[]; aaaa: string[]; cname: string[]; mx: string[]; ns: string[]; txt: string[]; time_ms: number }>("/tools/dns", { method: "POST", json: { host: resolveTarget(args[0], ctx) } });
+        const rec = (t: string, vals: string[]) => vals.map((v) => ({ text: `  ${t.padEnd(6)}${v}` }));
+        return [{ text: `${r.host} (${r.time_ms} ms)`, tone: "accent" }, ...rec("CNAME", r.cname), ...rec("A", r.a), ...rec("AAAA", r.aaaa), ...rec("MX", r.mx), ...rec("NS", r.ns), ...rec("TXT", r.txt)];
       }
       case "curl": case "http": case "headers": {
         const method = (flag(args, "-X") ?? (bool(args, "-I", "--head") ? "HEAD" : undefined))?.toUpperCase();

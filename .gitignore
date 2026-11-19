@@ -1,11 +1,14 @@
-# Rust
-api/target/
 # Secrets: never commit real environment files
 .env
 .env.local
-api/.env
+.env.*.local
 web/.env.local
 !**/.env.example
+# Build output
+web/.next/
+web/.netlify/
+.netlify/
+node_modules/
 # OS / editor
 .DS_Store
 Thumbs.db

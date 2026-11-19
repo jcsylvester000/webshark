@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { api, errMsg } from "@/lib/api";
 import { download } from "@/lib/docs";
+import { scanPorts } from "@/lib/scan";
 import type { AuditReport, ScanResponse } from "@/lib/types";
 
 const SEV: Record<string, string> = { pass: "bg-emerald-500/15 text-emerald-300", info: "bg-zinc-500/20 text-zinc-300", low: "bg-amber-500/15 text-amber-300", medium: "bg-orange-500/20 text-orange-300", high: "bg-red-500/20 text-red-300" };
@@ -21,10 +22,12 @@ export default function ScannerPage() {
   const [checkFiles, setCheckFiles] = useState(true);
   const [busy, setBusy] = useState<"scan" | "audit" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
   async function runScan() {
     setBusy("scan"); setError(null);
-    try { setScan(await api<ScanResponse>("/tools/portscan", { method: "POST", json: { target, ports: ports === "custom" ? custom : ports, banners, authorized } })); }
+    setProgress(null);
+    try { setScan(await scanPorts(target, ports === "custom" ? custom : ports, { banners, onProgress: (d, t) => setProgress(`${d}/${t}`) })); }
     catch (e) { setError(errMsg(e)); }
     setBusy(null);
   }
@@ -59,7 +62,7 @@ export default function ScannerPage() {
           <div className="flex flex-wrap gap-2">
             <input aria-label="Target" className="input max-w-md font-mono" placeholder="example.com, 10.0.0.5, or https://app.example.com" value={target} onChange={(e) => setTarget(e.target.value)} />
             <select aria-label="Ports" className="input w-48" value={ports} onChange={(e) => setPorts(e.target.value)}>
-              <option value="common">Common (52 ports)</option><option value="web">Web ports</option><option value="db">Database ports</option><option value="1-1024">Well-known 1-1024</option><option value="custom">Custom…</option>
+              <option value="common">Common (52 ports)</option><option value="web">Web ports</option><option value="db">Database ports</option><option value="well-known">Well-known 1-1024</option><option value="custom">Custom…</option>
             </select>
             {ports === "custom" && <input aria-label="Custom ports" className="input w-56 font-mono" placeholder="22,80,443,8000-8100" value={custom} onChange={(e) => setCustom(e.target.value)} />}
           </div>
@@ -72,7 +75,7 @@ export default function ScannerPage() {
             <span>I own this target or have written permission to test it. Scanning systems without permission may be illegal. Every run is logged to your account.</span>
           </label>
           <div className="flex gap-2">
-            <button className="btn-primary" disabled={!target || !authorized || !!busy} onClick={runScan}><Radar size={15} />{busy === "scan" ? "Scanning…" : "Scan ports"}</button>
+            <button className="btn-primary" disabled={!target || !authorized || !!busy} onClick={runScan}><Radar size={15} />{busy === "scan" ? `Scanning… ${progress ?? ""}` : "Scan ports"}</button>
             <button className="btn" disabled={!target || !authorized || !!busy} onClick={runAudit}><ShieldCheck size={15} />{busy === "audit" ? "Auditing…" : "Run web audit"}</button>
           </div>
           {error && <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}

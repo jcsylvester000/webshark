@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "netlify-build": "node scripts/migrate.mjs && next build"
   },
   "dependencies": {
     "@xyflow/react": "^13.0.2",
     "lucide-react": "^1.76.0",
     "next": "16.4.6",
+    "postgres": "^4.1.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1"
@@ -25,5 +29,8 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.9"
   }
 }

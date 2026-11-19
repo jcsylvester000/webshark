@@ -6,76 +6,78 @@ Slyshark is a documentation and testing workbench for networks, servers and appl
 It draws on Wireshark's capture-analysis ideas and adds an infrastructure designer, a network
 console, a port scanner, a security audit and a Postman-style API client.
 
-| Part | Stack | Folder |
-|---|---|---|
-| Web app | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, React Flow | `web/` |
-| API | Rust (axum 0.8, tokio, sqlx 0.8, reqwest) | `api/` |
-| Database | Neon serverless Postgres | migrations in `api/migrations/` |
+**Stack:** one Next.js 16 app (React 19 + TypeScript + Tailwind CSS 4 + React Flow) in `web/`.
+The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
+Data lives in **Neon** serverless Postgres.
 
-## Features (v0.1)
-- **Accounts**: register and sign in before the dashboard is reachable. Argon2id password hashing,
-  opaque session tokens (only a SHA-256 hash is stored), and an httpOnly cookie on the web side.
-- **Environment designer**: drag and drop PCs, terminals, routers, firewalls, WAFs, load balancers,
-  CDNs, DNS, servers, containers, Kubernetes, databases, caches, queues, web apps, APIs, platform
-  zones (Vercel, Netlify, AWS, Laravel Forge), threat actors and vulnerabilities. Templates are
-  included for Vercel + Neon, Netlify, AWS 3-tier, Forge LEMP, an office LAN, and two attack scenarios.
-  Canvases autosave to Neon, and you can export them as Markdown documentation or JSON.
-- **URL → application**: paste a URL into a Web App node. The node takes the site's name and favicon,
+## Features (v0.2)
+- **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing,
+  random session tokens (only a SHA-256 hash is stored), and an httpOnly cookie.
+- **Environment designer**: drag and drop PCs, terminals, routers, firewalls, WAFs, load balancers, CDNs,
+  DNS, servers, containers, Kubernetes, databases, caches, queues, web apps, APIs, platform zones
+  (Vercel, Netlify, AWS, Laravel Forge), threat actors and vulnerabilities. Eight templates are included,
+  plus autosave and Markdown/JSON export.
+- **URL → application**: paste a URL into a Web App node. The node takes the site's name and icon,
   and (with auto-scan on) it is port-scanned straight away.
-- **Console**: `ping`, `tcping`, `dns`, `curl`, `headers`, `scan`, `audit`, `nodes`, `history`. It is
-  docked under the designer, where node names work as targets and results are written onto the nodes.
-- **Port scanner**: TCP connect scan with presets, custom ranges, banner grabbing and exposure notes.
+- **Console**: `ping` and `tcping` (TCP connect), `dns`, `curl`, `headers`, `scan`, `audit`, `nodes`, `history`.
+- **Port scanner**: TCP connect scan with banners and exposure notes. Large scans are split into
+  batches of 200 ports so each request finishes inside serverless time limits.
 - **Web audit** (light penetration testing): security headers, HTTPS redirect, cookie flags, CORS
-  reflection, risky HTTP methods, version disclosure, and exposed `.git`, `.env`, `phpinfo`, `server-status`.
-- **API client**: any method, query params, headers, JSON, text, XML, urlencoded or multipart bodies,
-  Bearer, Basic or API-key auth, `{{variables}}`, saved collections, redirect chain and cURL export.
-- **Packet captures**: `.pcap` and `.pcapng` files in a Wireshark-style list, protocol tree and hex pane.
-  Includes display filters, Protocol / Conversation / Endpoint statistics, and Follow TCP Stream.
-  Decodes Ethernet, VLAN, SLL, ARP, IPv4, IPv6, ICMP, ICMPv6, TCP, UDP, DNS, mDNS, DHCP, NTP,
-  SSDP, QUIC, HTTP, TLS (with the SNI server name) and SSH.
-- **Activity log**: every ping, scan, HTTP request and audit is recorded against the user.
+  reflection, risky methods, version disclosure, and exposed `.git`, `.env`, `phpinfo`, `server-status`.
+- **API client**: any method, params, headers, JSON, text, XML, urlencoded or multipart bodies, Bearer,
+  Basic or API-key auth, `{{variables}}`, saved collections, redirect chain and cURL export.
+- **Packet captures**: `.pcap` and `.pcapng` files are decoded **in your browser**: they are never
+  uploaded, and files up to 200 MB work. Wireshark-style list, protocol tree, hex view, display filters,
+  statistics, and Follow TCP Stream.
+- **Activity log** of every network action.
 
-## Prerequisites (Windows)
-- Node.js 20.9+ (`node -v`)
-- Rust stable via https://rustup.rs (`cargo -V`); on Windows also install the "Desktop development with C++" build tools
-- A Neon project: https://console.neon.tech → create the database `slyshark` → copy the **direct** connection string
-
-## Run locally
+## Run locally (PowerShell)
 ```powershell
-# 1) API
-cd api
-copy .env.example .env        # then paste your Neon DATABASE_URL into .env
-cargo run                     # runs migrations, seeds testuser, listens on 127.0.0.1:8080
-
-# 2) Web (new terminal)
 cd web
-copy .env.example .env.local
+copy .env.example .env.local     # paste your Neon DATABASE_URL
 npm install
-npm run dev                   # http://localhost:3000
+npm run db:migrate               # creates tables + testuser / password123
+npm run dev                      # http://localhost:3000
 ```
-Sign in with **testuser / password123** (created when `SEED_TEST_USER=true`; turn this off before deploying).
-For a sample capture, open `samples/slyshark-demo.pcap` on the Packet Captures page.
+
+## Deploy to Netlify
+1. Push this repo to GitHub (see below).
+2. Netlify → **Add new project → Import from Git** → pick `jcsylvester000/webshark`.
+   `netlify.toml` already sets base `web`, command `npm run netlify-build`, publish `.next`, Node 22.
+3. **Site configuration → Environment variables** (scopes: Builds + Functions):
+   `DATABASE_URL` (Neon **pooled** connection string), `SEED_TEST_USER=true` (testing only),
+   optionally `ALLOW_PRIVATE_TARGETS`, `TOOL_BUDGET_MS`.
+4. Deploy. Every build runs database migrations first, then `next build`. Netlify's Next.js adapter
+   (OpenNext) is applied automatically.
+
+### Serverless notes
+- **Ping uses TCP connect**, not ICMP: serverless functions cannot open raw sockets.
+- Scans and audits run from Netlify's servers, so they test public hosts. Private/LAN addresses are
+  blocked in production (`ALLOW_PRIVATE_TARGETS=false`) to prevent SSRF. Run `npm run dev` on your
+  own network to test internal hosts.
+- Netlify synchronous functions stop at 10 s by default. Slyshark keeps each tool request under
+  `TOOL_BUDGET_MS` (8.5 s) and batches port scans.
 
 ## Security model
-- Only test systems you own or are authorized to assess. Scans and audits need an explicit
-  authorization confirmation and are logged.
-- The API blocks link-local and cloud-metadata addresses (169.254.0.0/16), multicast, and the
-  unspecified address. Set `ALLOW_PRIVATE_TARGETS=false` if untrusted users can sign up, to stop
-  SSRF into your private network.
-- Packet captures stay in API memory for at most one hour and are never written to the database.
-- The console never runs shell commands. Every command maps to a fixed API tool with validated input.
+- Only test systems you own or are authorized to assess. Scans and audits require explicit
+  confirmation and are logged.
+- Link-local and cloud-metadata addresses (169.254.0.0/16), multicast and unspecified addresses are
+  always blocked. HTTP requests pin the resolved IP and re-check every redirect hop.
+- The console never runs shell commands. Every command maps to a fixed tool with validated input.
 
 ## Project layout
 ```text
-api/  src/main.rs (boot) · routes/ (auth, environments, requests, tools, captures)
-      tools/ (ping, portscan, http_client, audit) · pcap/ (reader, dissect) · migrations/
-web/  src/app/ (pages + /api BFF routes) · src/components/ (Shell, Terminal, designer/)
-      src/lib/ (api client, node catalog, templates, terminal engine, display filter, docs export)
-samples/  slyshark-demo.pcap + its generator script
+netlify.toml                 Netlify build config (base = web)
+web/db/migrations/           SQL migrations (applied by scripts/migrate.mjs)
+web/scripts/migrate.mjs      migrations + optional test-user seed
+web/src/app/api/             Route Handlers: auth, settings, environments, requests, tools/*, health
+web/src/server/              server-only: db (postgres.js), auth, config, tools (target, ping, portscan, httpClient, audit)
+web/src/app/dashboard/       UI pages · web/src/components/ (Shell, Terminal, designer/)
+web/src/lib/                 browser logic: api, scan batching, ports, terminal, filter, docs, pcap/ (reader, dissect, analyze)
+samples/                     slyshark-demo.pcap + generator
 ```
 
 ## Relationship to Wireshark
-Slyshark does not copy Wireshark source code. Wireshark is GPL-2.0, so copied code would bring
-that licence with it. Slyshark reimplements the concepts in Rust and TypeScript: `wiretap` → `api/src/pcap/reader.rs`,
-`epan/dissectors` → `api/src/pcap/dissect.rs`, display filters → `web/src/lib/filter.ts`, and the
-`sharkd` JSON session (load / frames / frame / follow) → the `/captures` endpoints.
+Slyshark does not copy Wireshark source code (Wireshark is GPL-2.0). It reimplements the concepts in
+TypeScript: `wiretap` → `lib/pcap/reader.ts`, `epan/dissectors` → `lib/pcap/dissect.ts`,
+display filters → `lib/filter.ts`, and the `sharkd` load/frames/frame/follow session → `lib/pcap/analyze.ts`.

@@ -1,7 +1,19 @@
-/** POST /api/auth/login — forwards to the Rust API and stores the session cookie. */
-import type { NextRequest } from "next/server";
-import { authenticate } from "@/lib/auth-forward";
+/** POST /api/auth/login — verify credentials (username or email) and set the session cookie. */
+import { NextResponse, type NextRequest } from "next/server";
+import { cookieOptions, createSession, SESSION_COOKIE, verifyPassword } from "@/server/auth";
+import { sql } from "@/server/db";
+import { badRequest, handle, readJson } from "@/server/http";
+import { userJson } from "@/server/users";
 
-export async function POST(req: NextRequest) {
-  return authenticate(req, "/auth/login");
-}
+export const POST = handle(async (req: NextRequest) => {
+  const b = await readJson<{ identifier?: string; password?: string }>(req);
+  const ident = (b.identifier ?? "").trim().toLowerCase();
+  const [row] = await sql<{ id: string; password_hash: string }[]>`SELECT id, password_hash FROM users WHERE username = ${ident} OR email = ${ident}`;
+  // Same message for unknown user and wrong password (no account enumeration).
+  if (!row || !(await verifyPassword(b.password ?? "", row.password_hash))) throw badRequest("Invalid username/email or password");
+  await sql`UPDATE users SET last_login_at = now() WHERE id = ${row.id}`;
+  const token = await createSession(row.id, req.headers.get("user-agent"));
+  const res = NextResponse.json({ user: await userJson(row.id) });
+  res.cookies.set(SESSION_COOKIE, token, cookieOptions());
+  return res;
+});

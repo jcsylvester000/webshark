@@ -104,7 +104,7 @@ export function Inspector(p: Props) {
               <button className="btn" onClick={() => p.onConsole(n.id)}><SquareTerminal size={14} />Console</button>
             </div>
             <select className="input font-mono text-xs" value={ports} onChange={(e) => setPorts(e.target.value)} aria-label="Ports to scan">
-              <option value="common">common (52 ports)</option><option value="web">web ports</option><option value="db">database ports</option><option value="1-1024">1-1024</option>
+              <option value="common">common (52 ports)</option><option value="web">web ports</option><option value="db">database ports</option><option value="well-known">1-1024</option>
               {d.ports && <option value={d.ports}>documented: {d.ports}</option>}
             </select>
             {d.scan && <p className="font-mono text-xs text-muted">Last scan {new Date(d.scan.at).toLocaleString()}: {d.scan.open.map((x) => x.port).join(", ") || "none open"}</p>}

@@ -1,4 +1,4 @@
-/** Browser-side API client. All calls go through the Next.js BFF at /api/ws/*. */
+/** Browser-side API client. All calls go to the Next.js route handlers at /api/*. */
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) {
     super(message);
@@ -9,7 +9,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const { json, ...rest } = init;
   const headers = new Headers(rest.headers);
   if (json !== undefined) headers.set("content-type", "application/json");
-  const res = await fetch(`/api/ws${path}`, { ...rest, headers, body: json !== undefined ? JSON.stringify(json) : rest.body });
+  const res = await fetch(`/api${path}`, { ...rest, headers, body: json !== undefined ? JSON.stringify(json) : rest.body });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && typeof window !== "undefined") {
     // Hard navigation on purpose: the session expired, so reset all client state.

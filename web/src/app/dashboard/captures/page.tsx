@@ -3,15 +3,18 @@
  * Packet capture analyzer — the Wireshark three-pane layout:
  * packet list (virtualized, colorized) · protocol tree · hex/ASCII bytes with field highlighting.
  * Plus display filters, Protocol/Conversation/Endpoint statistics, and Follow TCP Stream.
+ * Captures are decoded entirely in the browser (lib/pcap): packet data is never uploaded.
  */
 import { ChevronDown, ChevronRight, Filter, Upload, Waves, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, errMsg } from "@/lib/api";
+import { errMsg } from "@/lib/api";
 import { compileFilter, rowColor } from "@/lib/filter";
-import type { CaptureLoad, Frame, TreeNode } from "@/lib/types";
+import { analyzeCapture, followStream as followLocal, frameDetail, type LocalCapture } from "@/lib/pcap/analyze";
+import type { Frame, TreeNode } from "@/lib/types";
 
 const ROW_H = 22;
-type FrameDetail = { summary: Frame; tree: TreeNode[]; bytes: string };
+type FrameDetail = { summary: Frame; tree: TreeNode[]; bytes: Uint8Array };
+const MAX_FILE = 200 * 1024 * 1024;
 type Follow = { stream: number; client: string; server: string; client_bytes: number; server_bytes: number; segments: { no: number; from_client: boolean; text: string }[] };
 
 function Tree({ nodes, depth = 0, onHover, active }: { nodes: TreeNode[]; depth?: number; onHover: (n: TreeNode | null) => void; active: TreeNode | null }) {
@@ -36,8 +39,7 @@ function Tree({ nodes, depth = 0, onHover, active }: { nodes: TreeNode[]; depth?
   );
 }
 
-function Hex({ b64, hl }: { b64: string; hl: TreeNode | null }) {
-  const bytes = useMemo(() => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)), [b64]);
+function Hex({ bytes, hl }: { bytes: Uint8Array; hl: TreeNode | null }) {
   const rows = [];
   for (let off = 0; off < bytes.length; off += 16) {
     const chunk = Array.from(bytes.slice(off, off + 16));
@@ -54,7 +56,7 @@ function Hex({ b64, hl }: { b64: string; hl: TreeNode | null }) {
 }
 
 export default function CapturesPage() {
-  const [cap, setCap] = useState<CaptureLoad | null>(null);
+  const [cap, setCap] = useState<LocalCapture | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
@@ -84,23 +86,26 @@ export default function CapturesPage() {
 
   async function upload(file: File) {
     setLoading(true); setError(null); setDetail(null); setSelected(null); setFollow(null);
-    if (cap) api(`/captures/${cap.id}`, { method: "DELETE" }).catch(() => null);
-    const fd = new FormData();
-    fd.append("file", file);
-    try { setCap(await api<CaptureLoad>("/captures", { method: "POST", body: fd })); setView("packets"); }
-    catch (e) { setError(errMsg(e)); }
+    if (file.size > MAX_FILE) { setError("Capture is larger than 200 MB"); setLoading(false); return; }
+    try {
+      const buf = await file.arrayBuffer();
+      await new Promise((r) => setTimeout(r, 0)); // let the "Loading…" state paint first
+      setCap(analyzeCapture(file.name, buf));
+      setView("packets");
+    } catch (e) { setError(errMsg(e)); }
     setLoading(false);
   }
 
   async function select(no: number) {
     if (!cap) return;
     setSelected(no); setHl(null);
-    try { setDetail(await api<FrameDetail>(`/captures/${cap.id}/frames/${no}`)); } catch (e) { setError(errMsg(e)); }
+    try { setDetail(frameDetail(cap, no)); } catch (e) { setError(errMsg(e)); }
   }
 
   async function followStream(stream: number) {
     if (!cap) return;
-    try { setFollow(await api<Follow>(`/captures/${cap.id}/follow/${stream}`)); } catch (e) { setError(errMsg(e)); }
+    const f = followLocal(cap, stream);
+    if (f) setFollow(f as Follow); else setError("No packets in that stream");
   }
 
   const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 10);
@@ -137,7 +142,7 @@ export default function CapturesPage() {
           <div className="max-w-md">
             <Waves size={36} className="mx-auto text-fin" />
             <h1 className="mt-3 text-lg font-semibold">Open a packet capture</h1>
-            <p className="mt-1 text-sm text-muted">Drop a .pcap or .pcapng file here (max 50 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. Captures stay in memory for one hour and are never stored in the database.</p>
+            <p className="mt-1 text-sm text-muted">Drop a .pcap or .pcapng file here (max 200 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. The file is decoded in your browser and is never uploaded.</p>
           </div>
         </div>
       ) : (
@@ -170,7 +175,7 @@ export default function CapturesPage() {
                     </>
                   ) : <p className="p-2 font-sans text-sm text-muted">Select a packet. Use ↑/↓ to move, double-click a TCP packet to follow its stream.</p>}
                 </div>
-                <div className="w-[560px] shrink-0 overflow-auto p-2">{detail && <Hex b64={detail.bytes} hl={hl} />}</div>
+                <div className="w-[560px] shrink-0 overflow-auto p-2">{detail && <Hex bytes={detail.bytes} hl={hl} />}</div>
               </div>
             </div>
           ) : (

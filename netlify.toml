@@ -1,0 +1,20 @@
+# Netlify build configuration for Slyshark (Next.js full-stack app in web/).
+# Netlify's OpenNext adapter is applied automatically: pages, route handlers (/api/*) and
+# src/proxy.ts are deployed as functions/edge functions with zero extra config.
+[build]
+  base = "web"
+  command = "npm run netlify-build"   # runs DB migrations, then next build
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Basic hardening headers for every response.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errMsg } from "@/lib/api";
 import { canvasToMarkdown, download } from "@/lib/docs";
+import { scanPorts } from "@/lib/scan";
 import { GROUPS, kindOf, nodeTarget, NODE_KINDS } from "@/lib/nodes";
 import { TEMPLATES } from "@/lib/templates";
 import type { AuditReport, Canvas, DeviceData, EnvFull, LinkData, PingResponse, ScanResponse } from "@/lib/types";
@@ -119,7 +120,7 @@ function DesignerInner({ id }: { id: string }) {
     setError(null);
     try {
       if (tool === "ping") applyPing(target, await api<PingResponse>("/tools/ping", { method: "POST", json: { host: target, count: 3 } }));
-      if (tool === "scan") applyScan(target, await api<ScanResponse>("/tools/portscan", { method: "POST", json: { target, ports, authorized: true } }));
+      if (tool === "scan") applyScan(target, await scanPorts(target, ports));
       if (tool === "audit") {
         const r = await api<AuditReport>("/tools/audit", { method: "POST", json: { url: n.data.url || target, authorized: true } });
         patchNode(nid, { audit: { at: new Date().toISOString(), score: r.score, issues: r.findings.filter((f) => !["pass", "info"].includes(f.severity)).length } });
@@ -140,7 +141,7 @@ function DesignerInner({ id }: { id: string }) {
     if (env?.meta.autoScan && env.meta.authorized) {
       setBusy(`scan-${nid}`);
       try {
-        const r = await api<ScanResponse>("/tools/portscan", { method: "POST", json: { target: host, ports: "common", authorized: true } });
+        const r = await scanPorts(host, "common");
         patchNode(nid, { scan: { at: new Date().toISOString(), address: r.address, open: r.open.map((p) => ({ port: p.port, service: p.service, note: p.note })) } });
       } catch (e) { setError(errMsg(e)); }
       setBusy(null);
