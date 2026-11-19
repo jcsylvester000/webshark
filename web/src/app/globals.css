@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Slyshark theme: deep-sea dark with a teal "fin" accent. */
+@theme inline {
+  --color-bg: #070b10;
+  --color-panel: #0c131b;
+  --color-panel-2: #111b26;
+  --color-line: #1c2a38;
+  --color-ink: #dbe6f0;
+  --color-muted: #7d90a3;
+  --color-fin: #2ee6c5;
+  --color-fin-dim: #1a8f7c;
+  --color-danger: #f05252;
+  --color-warn: #f5b84a;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html, body { background: var(--color-bg); color: var(--color-ink); }
+body { font-family: var(--font-sans), system-ui, sans-serif; }
+::selection { background: #2ee6c533; }
+* { scrollbar-width: thin; scrollbar-color: #1c2a38 transparent; }
+
+@layer components {
+  .btn { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm text-ink transition hover:border-fin/60 hover:text-white disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md bg-fin px-3 py-1.5 text-sm font-semibold text-bg transition hover:brightness-110 disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-danger { @apply inline-flex items-center gap-1.5 rounded-md border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10; }
+  .input { @apply w-full rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-fin/70; }
+  .label { @apply mb-1 block text-xs font-medium uppercase tracking-wider text-muted; }
+  .panel { @apply rounded-lg border border-line bg-panel; }
+  .tab { @apply border-b-2 border-transparent px-3 py-2 text-sm text-muted hover:text-ink; }
+  .tab-active { @apply border-fin text-ink; }
+}
+
+/* React Flow v13 uses light-dark(); force the dark scheme */
+.react-flow { color-scheme: dark; --xy-background-color: transparent; }
+.react-flow__controls button { background: var(--color-panel-2); border-color: var(--color-line); fill: var(--color-ink); }
+.react-flow__controls button:hover { background: #18263a; }
+.react-flow__minimap { background: var(--color-panel); }
+.react-flow__attribution { display: none; }
+.react-flow__handle { width: 9px; height: 9px; background: var(--color-fin); border: 2px solid var(--color-bg); }
