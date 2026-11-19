@@ -9,6 +9,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiClient } from "@/components/ApiClient";
 import { BatchTests } from "@/components/BatchTests";
+import { ApiDocs } from "@/components/docs/ApiDocs";
 import { Designer } from "@/components/designer/Designer";
 import { dialogs } from "@/components/Dialogs";
 import { HistoryDrawer } from "@/components/HistoryDrawer";
@@ -23,7 +24,7 @@ import { ApiError, errMsg } from "@/lib/api";
 import { command } from "@/lib/cqrs";
 import { useProjects } from "@/lib/store";
 
-const TABS = [["design", "Design"], ["console", "Console"], ["api", "API client"], ["scanner", "Scanner & audit"], ["batch", "Batch tests"], ["results", "Results"], ["notes", "Notes"]] as const;
+const TABS = [["design", "Design"], ["console", "Console"], ["api", "API client"], ["docs", "API docs"], ["scanner", "Scanner & audit"], ["batch", "Batch tests"], ["results", "Results"], ["notes", "Notes"]] as const;
 type TabId = (typeof TABS)[number][0];
 
 export default function ProjectPage() {
@@ -112,6 +113,7 @@ export default function ProjectPage() {
         {visited.has("design") && <div className={`absolute inset-0 ${tab === "design" ? "" : "hidden"}`}><Designer projectId={id} onEditDetails={() => setPanel("details")} /></div>}
         {visited.has("console") && <div className={`absolute inset-0 flex flex-col p-4 ${tab === "console" ? "" : "hidden"}`}><Terminal projectId={id} className="flex-1 rounded-lg border border-line" context={{ nodes: project.state.canvas.nodes.map((n) => ({ id: n.id, label: n.data.label, target: n.data.host || (n.data.url ? safeHost(n.data.url) : null) })) }} /></div>}
         {visited.has("api") && <div className={`absolute inset-0 ${tab === "api" ? "" : "hidden"}`}><ApiClient projectId={id} /></div>}
+        {visited.has("docs") && <div className={`absolute inset-0 ${tab === "docs" ? "" : "hidden"}`}><ApiDocs projectId={id} /></div>}
         {visited.has("scanner") && <div className={`absolute inset-0 overflow-auto ${tab === "scanner" ? "" : "hidden"}`}><Scanner projectId={id} /></div>}
         {visited.has("batch") && <div className={`absolute inset-0 overflow-auto ${tab === "batch" ? "" : "hidden"}`}><BatchTests projectId={id} /></div>}
         {tab === "results" && <div className="absolute inset-0 overflow-auto"><ResultsPanel projectId={id} /></div>}

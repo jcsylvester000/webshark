@@ -1,9 +1,12 @@
 /** Project snapshot model: everything a project needs to reopen exactly as it was left. */
 import { nodeTarget } from "./nodes";
 import { uid, type BatchRun, type Scenario, type Step } from "./batch";
+import type { ApiDocState } from "./openapi/types";
 import type { AuditReport, Canvas, HttpRequestSpec, KeyValue, ScanResponse } from "./types";
 
-export type SavedRequest = { id: string; collection: string; name: string; request: HttpRequestSpec };
+/** `sample` is the last response captured in the API client; it feeds examples in the API docs draft. */
+export type ResponseSample = { status: number; statusText: string; contentType: string; body: string; at: string };
+export type SavedRequest = { id: string; collection: string; name: string; request: HttpRequestSpec; sample?: ResponseSample };
 export type ResultEntry = { id: string; at: string; tool: "ping" | "dns" | "portscan" | "http" | "audit"; target: string; ok: boolean; summary: string };
 
 export type ProjectState = {
@@ -15,6 +18,8 @@ export type ProjectState = {
   batch: { scenarios: Scenario[]; activeScenarioId: string | null; lastRun: BatchRun | null };
   results: ResultEntry[];
   notes: string;
+  /** Documentation authored in the Docs tab (OpenAPI for now). */
+  docs: { api: ApiDocState };
 };
 
 export type ProjectMeta = { id: string; workspaceId: string | null; workspaceName: string; name: string; description: string; template: string | null; status: string; tags: string[]; stage: string; pinned: boolean };
@@ -31,6 +36,7 @@ export function emptyState(): ProjectState {
     batch: { scenarios: [], activeScenarioId: null, lastRun: null },
     results: [],
     notes: "",
+    docs: { api: { spec: null, format: "yaml", updatedAt: null } },
   };
 }
 
@@ -47,6 +53,7 @@ export function normalizeState(raw: unknown): ProjectState {
     batch: { ...e.batch, ...s.batch },
     results: s.results ?? [],
     notes: s.notes ?? "",
+    docs: { api: { ...e.docs.api, ...s.docs?.api } },
   };
 }
 

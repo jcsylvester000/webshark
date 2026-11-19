@@ -9,7 +9,9 @@ import type { StepResult } from "@/lib/batch";
 import { stageOf } from "@/lib/cqrs";
 import { kindOf, nodeTarget } from "@/lib/nodes";
 import { runReport } from "@/lib/reports";
+import type { OpenApiDoc } from "@/lib/openapi/types";
 import type { Canvas } from "@/lib/types";
+import { Reference } from "./docs/Reference";
 import { DeviceNode } from "./designer/DeviceNode";
 import { LinkEdge } from "./designer/LinkEdge";
 import { ExportMenu } from "./ExportMenu";
@@ -19,7 +21,7 @@ import { Tags } from "./ProjectBadges";
 import { Time } from "./Time";
 
 type Run = { id: string; scenario_name: string; started_at: string; finished_at: string; total: number; passed: number; failed: number; errored: number; results: StepResult[] };
-type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; runs: Run[] };
+type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; apiSpec: OpenApiDoc | null; runs: Run[] };
 const nodeTypes = { device: DeviceNode };
 const edgeTypes = { link: LinkEdge };
 
@@ -98,6 +100,12 @@ export function SharedView() {
             <tbody>{!assets.length && <tr><td colSpan={5} className="px-4 py-4 text-center text-muted">No components documented yet.</td></tr>}{assets.map((n) => <tr key={n.id} className="border-t border-line/60"><td className="px-4 py-1.5">{n.data.label}</td><td className="px-4 py-1.5 text-muted">{kindOf(n.data.kind).label}</td><td className="px-4 py-1.5 font-mono text-xs">{n.data.url || nodeTarget(n.data) || "—"}</td><td className="px-4 py-1.5 text-muted">{n.data.zone || "—"}</td><td className="px-4 py-1.5 font-mono text-xs">{n.data.ports || "—"}</td></tr>)}</tbody></table>
         </section>
         {data.notes && <section className="panel p-4"><h2 className="font-medium">Notes</h2><pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-muted">{data.notes}</pre></section>}
+        {data.apiSpec?.info && (
+          <section className="panel overflow-hidden" aria-label="API reference">
+            <div className="border-b border-line px-4 py-3"><h2 className="font-medium">API reference</h2></div>
+            <Reference doc={data.apiSpec} embedded />
+          </section>
+        )}
         {data.runs.length > 0 && (
           <section className="panel">
             <div className="border-b border-line px-4 py-3"><h2 className="font-medium">Saved test runs</h2></div>

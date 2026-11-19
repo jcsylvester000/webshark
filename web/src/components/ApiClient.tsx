@@ -67,6 +67,11 @@ export function ApiClient({ projectId }: { projectId: string }) {
     try {
       const r = await api<HttpResponse>("/tools/http", { method: "POST", json: substitute(req, vars) });
       setRes(r);
+      // Remember the latest response of a saved request: the API docs draft uses it as the example.
+      if (currentId && !r.is_binary) {
+        const sample = { status: r.status, statusText: r.status_text, contentType: r.headers.find((h) => h.key.toLowerCase() === "content-type")?.value ?? "", body: r.body.slice(0, 16_384), at: new Date().toISOString() };
+        setSaved((all) => all.map((x) => (x.id === currentId ? { ...x, sample } : x)));
+      }
       addResult(projectId, { tool: "http", target: `${req.method} ${req.url}`, ok: r.status < 400, summary: `${r.status} ${r.status_text} in ${r.time_ms} ms` });
       setHistory((h) => [{ method: req.method, url: req.url, status: r.status, ms: r.time_ms }, ...h].slice(0, 30));
     } catch (e) { setError(errMsg(e)); setRes(null); }

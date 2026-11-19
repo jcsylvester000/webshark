@@ -69,7 +69,7 @@ export async function listVersions(ownerId: string, projectId: string) {
 }
 
 export async function listShares(ownerId: string, projectId: string) {
-  return sql`SELECT id, label, (password_hash IS NOT NULL) AS has_password, include_notes, include_runs, expires_at, revoked_at,
+  return sql`SELECT id, label, (password_hash IS NOT NULL) AS has_password, include_notes, include_runs, include_api_docs, expires_at, revoked_at,
                     view_count, last_viewed_at, created_at,
                     (revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())) AS active
              FROM share_links WHERE project_id = ${projectId} AND owner_id = ${ownerId} ORDER BY created_at DESC`;

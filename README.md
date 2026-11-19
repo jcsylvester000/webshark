@@ -10,7 +10,7 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.4)
+## Features (v0.5)
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
   random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
   change their password, see and sign out sessions, and delete the account.
@@ -25,6 +25,14 @@ Data lives in **Neon** serverless Postgres.
 - **Save history**: save with an optional note; the last 10 saves can be restored.
 - **Share links**: a read-only link to the last saved version, with an optional password (10 wrong
   tries lock it for 15 minutes), expiry, view counts and revocation. API secrets are never shared.
+  Links can include the API reference (on by default).
+- **API docs (OpenAPI)**: each project can hold an OpenAPI 3.1 description (3.2 optional), saved with
+  the project. Generate a draft from saved API-client requests (servers, path parameters, query
+  parameters, auth schemes, JSON bodies and captured responses; tokens and passwords are redacted),
+  start blank, or import a YAML/JSON file. Edit with a guided form or a YAML/JSON editor, check it
+  with a plain-language validator, and read it as an interactive reference with code samples (cURL,
+  JavaScript, Python) and **Try it** (sent through the server-side HTTP tool; credentials are never
+  saved). Export as OpenAPI YAML/JSON, Markdown, PDF or CSV.
 - **Workspaces → projects**: organize work into workspaces. Each project keeps its full working
   state: canvas, icons, links, API collections and variables, scanner settings and last results,
   console history, batch scenarios, test results and notes.
@@ -98,8 +106,8 @@ web/scripts/migrate.mjs      migrations + optional test-user seed
 web/src/app/api/             auth/*, commands/[name], queries/*, tools/*, health
 web/src/server/              server-only: db, auth, config, cqrs/ (commands, queries), tools/ (target, ping, portscan, httpClient, audit)
 web/src/app/dashboard/       overview, workspaces, projects/[id] (workbench), runs, scratch tools, captures
-web/src/components/          Shell, designer/*, ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
-web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, pcap/*
+web/src/components/          Shell, designer/*, docs/* (API docs: editor, reference, Try it), ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
+web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, openapi/* (model, generator, validator, YAML/JSON I/O), pcap/*
 samples/                     slyshark-demo.pcap + generator
 ```
 

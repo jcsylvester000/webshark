@@ -17,9 +17,9 @@ export const shareCommands: Record<string, Handler> = {
     const days = p.expiresInDays === null || p.expiresInDays === undefined ? null : Number(p.expiresInDays);
     if (days !== null && ![1, 7, 30, 90].includes(days)) throw badRequest("expiresInDays must be 1, 7, 30, 90 or null");
     const token = newToken().slice(0, 40);
-    const [row] = await sql`INSERT INTO share_links (token_hash, project_id, owner_id, label, password_hash, include_notes, include_runs, expires_at)
+    const [row] = await sql`INSERT INTO share_links (token_hash, project_id, owner_id, label, password_hash, include_notes, include_runs, include_api_docs, expires_at)
       VALUES (${hashToken(token)}, ${projectId}, ${ctx.userId}, ${String(p.label ?? "").trim().slice(0, 80)}, ${password ? await hashPassword(password) : null},
-              ${p.includeNotes !== false}, ${p.includeRuns !== false}, ${days === null ? null : sql`now() + make_interval(days => ${days})`})
+              ${p.includeNotes !== false}, ${p.includeRuns !== false}, ${p.includeApiDocs !== false}, ${days === null ? null : sql`now() + make_interval(days => ${days})`})
       RETURNING id, expires_at`;
     // The raw token is returned once; only its hash is stored.
     return { id: row.id, token, path: `/share/${token}`, expiresAt: row.expires_at };
