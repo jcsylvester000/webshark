@@ -4,19 +4,23 @@
  * API requests, variables, tokens and scanner settings are never exposed.
  */
 import "server-only";
+import type { BatchRun } from "@/lib/batch";
+import type { OpenApiDoc } from "@/lib/openapi/types";
+import { buildAssessment, normalizeSecurity, type SecurityState } from "@/lib/security/assessment";
+import type { AuditReport, Canvas, ScanResponse } from "@/lib/types";
 import { createHash } from "node:crypto";
 import { hashToken, verifyPassword } from "./auth";
 import { sql } from "./db";
 import { AppError, notFound } from "./http";
 
-export type ShareRow = { id: string; project_id: string; label: string; password_hash: string | null; include_notes: boolean; include_runs: boolean; include_api_docs: boolean; expires_at: Date | null; revoked_at: Date | null; failed_attempts: number; locked_until: Date | null };
+export type ShareRow = { id: string; project_id: string; label: string; password_hash: string | null; include_notes: boolean; include_runs: boolean; include_api_docs: boolean; include_report: boolean; expires_at: Date | null; revoked_at: Date | null; failed_attempts: number; locked_until: Date | null };
 
 export const unlockCookie = (shareId: string) => `sly_share_${shareId.replace(/-/g, "")}`;
 export const unlockValue = (s: ShareRow) => createHash("sha256").update(`${s.id}:${s.password_hash}`).digest("hex");
 
 export async function findShare(token: string): Promise<ShareRow> {
   if (!/^[a-f0-9]{20,64}$/.test(token)) throw notFound();
-  const [s] = await sql<ShareRow[]>`SELECT id, project_id, label, password_hash, include_notes, include_runs, include_api_docs, expires_at, revoked_at, failed_attempts, locked_until
+  const [s] = await sql<ShareRow[]>`SELECT id, project_id, label, password_hash, include_notes, include_runs, include_api_docs, include_report, expires_at, revoked_at, failed_attempts, locked_until
                                     FROM share_links WHERE token_hash = ${hashToken(token)}`;
   if (!s) throw notFound();
   if (s.revoked_at) throw new AppError(410, "revoked", "This link has been turned off by its owner.");
@@ -39,7 +43,8 @@ export async function tryUnlock(s: ShareRow, password: string): Promise<boolean>
 export async function shareContent(s: ShareRow) {
   const [p] = await sql`SELECT p.name, p.description, p.tags, p.stage, p.saved_at, p.state_version, p.state->'canvas' AS canvas,
                                CASE WHEN ${s.include_notes} THEN p.state->>'notes' ELSE NULL END AS notes,
-                               CASE WHEN ${s.include_api_docs} THEN p.state->'docs'->'api'->'spec' ELSE NULL END AS api_spec, u.display_name, u.username
+                               CASE WHEN ${s.include_api_docs} THEN p.state->'docs'->'api'->'spec' ELSE NULL END AS api_spec,
+                               CASE WHEN ${s.include_report} THEN jsonb_build_object('spec', p.state->'docs'->'api'->'spec', 'security', p.state->'docs'->'security', 'audit', p.state->'scanner'->'lastAudit', 'scan', p.state->'scanner'->'lastScan', 'run', p.state->'batch'->'lastRun') ELSE NULL END AS report_src, u.display_name, u.username
                         FROM projects p JOIN users u ON u.id = p.owner_id WHERE p.id = ${s.project_id}`;
   if (!p) throw notFound();
   const runs = s.include_runs
@@ -49,6 +54,14 @@ export async function shareContent(s: ShareRow) {
   await sql`UPDATE share_links SET view_count = view_count + 1, last_viewed_at = now() WHERE id = ${s.id}`;
   return {
     label: s.label, project: { name: p.name, description: p.description, tags: p.tags, stage: p.stage, savedAt: p.saved_at, version: p.state_version, owner: p.display_name ?? p.username },
-    canvas: p.canvas ?? { nodes: [], edges: [] }, notes: p.notes, apiSpec: p.api_spec ?? null, runs,
+    canvas: p.canvas ?? { nodes: [], edges: [] }, notes: p.notes, apiSpec: p.api_spec ?? null, report: reportOf(p), runs,
   };
+}
+
+/** Builds the read-only assessment on the server so raw project state never leaves it. */
+function reportOf(p: Record<string, unknown>) {
+  const r = p.report_src as { spec: OpenApiDoc | null; security: Partial<SecurityState> | null; audit: AuditReport | null; scan: ScanResponse | null; run: BatchRun | null } | null;
+  if (!r) return null;
+  const canvas = (p.canvas as Canvas) ?? { nodes: [], edges: [] };
+  return buildAssessment(String(p.name), { spec: r.spec, audit: r.audit, scan: r.scan, run: r.run, canvas }, normalizeSecurity(r.security ?? undefined));
 }

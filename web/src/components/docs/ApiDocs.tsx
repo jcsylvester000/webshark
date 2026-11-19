@@ -4,7 +4,7 @@
  * guided form or as YAML/JSON, and read as an interactive reference with Try it. Everything lives
  * in the project's working state and is stored only when the user clicks "Save project".
  */
-import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, ListTree, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, Code2, FilePlus2, FileUp, Grid3x3, ListTree, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { exportCsv, exportPdf, fileSlug } from "@/lib/export";
 import { generateSpec } from "@/lib/openapi/generate";
@@ -17,10 +17,12 @@ import { dialogs } from "../Dialogs";
 import { HelpTip } from "../HelpTip";
 import { CodeEditor } from "./CodeEditor";
 import { GuidedEditor } from "./GuidedEditor";
+import { AuthMatrixView } from "./AuthMatrixView";
 import { IssuesPanel } from "./IssuesPanel";
 import { Reference } from "./Reference";
+import { SecurityCheckView } from "./SecurityCheckView";
 
-type View = "reference" | "edit" | "code";
+type View = "reference" | "edit" | "code" | "matrix" | "security";
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -29,7 +31,7 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function ApiDocs({ projectId }: { projectId: string }) {
+export function ApiDocs({ projectId, onOpenReport }: { projectId: string; onOpenReport: () => void }) {
   const project = useProjects((s) => s.loaded[projectId]);
   const update = useProjects((s) => s.update);
   const [view, setView] = useState<View>("reference");
@@ -103,13 +105,13 @@ export function ApiDocs({ projectId }: { projectId: string }) {
     </div>
   );
 
-  const views: [View, string, React.ReactNode][] = [["reference", "Reference", <BookOpen key="r" size={14} />], ["edit", "Edit", <ListTree key="e" size={14} />], ["code", "YAML / JSON", <Code2 key="c" size={14} />]];
+  const views: [View, string, React.ReactNode][] = [["reference", "Reference", <BookOpen key="r" size={14} />], ["edit", "Edit", <ListTree key="e" size={14} />], ["code", "YAML / JSON", <Code2 key="c" size={14} />], ["matrix", "Auth matrix", <Grid3x3 key="m" size={14} />], ["security", "Security check", <ShieldCheck key="s" size={14} />]];
   return (
     <div className="flex h-full min-h-0 flex-col">
       {fileInput}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <div className="flex rounded-md border border-line p-0.5" role="group" aria-label="API docs view">
-          {views.map(([v, label, icon]) => <button key={v} aria-pressed={view === v} className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${view === v ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(v)}>{icon}{label}</button>)}
+          {views.map(([v, label, icon]) => <button key={v} aria-pressed={view === v} className={`flex items-center gap-1.5 whitespace-nowrap rounded px-2.5 py-1 text-sm ${view === v ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setView(v)}>{icon}{label}</button>)}
         </div>
         <button className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm ${counts.errors ? "border-danger/50 text-danger" : counts.warnings ? "border-amber-500/50 text-amber-300" : "border-fin/40 text-fin"}`} aria-expanded={showIssues} title="Documentation check" onClick={() => setShowIssues(!showIssues)}>
           {counts.errors || counts.warnings ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
@@ -141,6 +143,8 @@ export function ApiDocs({ projectId }: { projectId: string }) {
         {view === "reference" && <Reference doc={spec} projectId={projectId} />}
         {view === "edit" && <GuidedEditor key={focus.n} doc={spec} onChange={setSpec} initial={focus.key} issues={issues} />}
         {view === "code" && <CodeEditor doc={spec} format={docState.format} onFormat={setFormat} onChange={setSpec} />}
+        {view === "matrix" && <AuthMatrixView doc={spec} project={project.meta.name} onEdit={(key) => { setFocus((f) => ({ key, n: f.n + 1 })); setView("edit"); }} />}
+        {view === "security" && <SecurityCheckView doc={spec} projectId={projectId} onOpenReport={onOpenReport} />}
       </div>
     </div>
   );

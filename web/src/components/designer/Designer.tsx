@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errMsg } from "@/lib/api";
 import { canvasToMarkdown, download } from "@/lib/docs";
 import { scanPorts } from "@/lib/scan";
+import { stableJson } from "@/lib/stable";
 import { useProjects } from "@/lib/store";
 import { GROUPS, kindOf, nodeTarget, NODE_KINDS } from "@/lib/nodes";
 import { TEMPLATES } from "@/lib/templates";
@@ -38,7 +39,7 @@ function toFlow(c: Canvas): { nodes: DeviceNodeT[]; edges: LinkEdgeT[] } {
 function fromFlow(nodes: DeviceNodeT[], edges: LinkEdgeT[], meta: Canvas["meta"]): Canvas {
   return {
     nodes: nodes.map((n) => ({ id: n.id, type: "device", position: { x: Math.round(n.position.x), y: Math.round(n.position.y) }, data: n.data })),
-    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, type: "link", data: e.data })),
+    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}), ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}), type: "link", data: e.data })),
     meta,
   };
 }
@@ -68,7 +69,8 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
   useEffect(() => {
     const t = setTimeout(() => {
       const next = fromFlow(nodes, edges, meta);
-      update(projectId, (s) => (JSON.stringify(s.canvas) === JSON.stringify(next) ? s : { ...s, canvas: next }));
+      // Key order differs after a round trip through Postgres JSONB, so compare order-insensitively.
+      update(projectId, (s) => (stableJson(s.canvas) === stableJson(next) ? s : { ...s, canvas: next }));
     }, 250);
     return () => clearTimeout(t);
   }, [nodes, edges, meta, projectId, update]);

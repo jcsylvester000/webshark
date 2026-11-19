@@ -12,6 +12,9 @@ import { runReport } from "@/lib/reports";
 import type { OpenApiDoc } from "@/lib/openapi/types";
 import type { Canvas } from "@/lib/types";
 import { Reference } from "./docs/Reference";
+import { FindingsList, SEV_CLASS } from "./security/FindingsList";
+import { assessmentMarkdown, assessmentReport, suggestSummary, type Assessment } from "@/lib/security/assessment";
+import { SEVERITY_LABEL } from "@/lib/security/types";
 import { DeviceNode } from "./designer/DeviceNode";
 import { LinkEdge } from "./designer/LinkEdge";
 import { ExportMenu } from "./ExportMenu";
@@ -21,7 +24,7 @@ import { Tags } from "./ProjectBadges";
 import { Time } from "./Time";
 
 type Run = { id: string; scenario_name: string; started_at: string; finished_at: string; total: number; passed: number; failed: number; errored: number; results: StepResult[] };
-type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; apiSpec: OpenApiDoc | null; runs: Run[] };
+type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; apiSpec: OpenApiDoc | null; report: Assessment | null; runs: Run[] };
 const nodeTypes = { device: DeviceNode };
 const edgeTypes = { link: LinkEdge };
 
@@ -106,6 +109,7 @@ export function SharedView() {
             <Reference doc={data.apiSpec} embedded />
           </section>
         )}
+        {data.report && <SharedReport a={data.report} />}
         {data.runs.length > 0 && (
           <section className="panel">
             <div className="border-b border-line px-4 py-3"><h2 className="font-medium">Saved test runs</h2></div>
@@ -126,4 +130,26 @@ export function SharedView() {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <main className="grid min-h-screen place-items-center px-4"><div className="panel w-full max-w-sm space-y-3 p-7 text-center"><div className="flex justify-center"><Wordmark /></div>{children}</div></main>;
+}
+
+function SharedReport({ a }: { a: Assessment }) {
+  const s = a.settings;
+  const md = () => { const url = URL.createObjectURL(new Blob([assessmentMarkdown(a)], { type: "text/markdown" })); const el = document.createElement("a"); el.href = url; el.download = "security-assessment.md"; el.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  return (
+    <section className="panel" aria-label="Security assessment">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+        <h2 className="font-medium">{s.title || "Security assessment"}</h2>
+        <span className="font-mono text-sm">Risk score {a.score}/100</span>
+        <div className="ml-auto flex gap-1.5"><button className="btn px-2 py-1 text-xs" onClick={md}>Markdown</button><ExportMenu small build={() => assessmentReport(a)} /></div>
+      </div>
+      <div className="space-y-3 p-4 text-sm">
+        <div className="flex flex-wrap gap-2">{(["high", "medium", "low", "info"] as const).map((v) => <span key={v} className={`rounded border px-2 py-1 text-xs ${SEV_CLASS[v]}`}>{a.counts[v]} {SEVERITY_LABEL[v].toLowerCase()} open</span>)}</div>
+        <p className="whitespace-pre-wrap">{s.summary || suggestSummary(a)}</p>
+        {s.scope && <p className="whitespace-pre-wrap text-muted"><b className="text-ink">Scope: </b>{s.scope}</p>}
+        {s.method && <p className="whitespace-pre-wrap text-muted"><b className="text-ink">Method: </b>{s.method}</p>}
+        {s.assessor && <p className="text-xs text-muted">Assessor: {s.assessor}</p>}
+        <FindingsList findings={a.findings} defaultStatus="all" empty="No findings recorded." />
+      </div>
+    </section>
+  );
 }

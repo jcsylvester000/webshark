@@ -57,6 +57,7 @@ html.light .text-sky-300, html.light .text-sky-200 { color: #0369a1; }
 html.light .text-violet-300, html.light .text-violet-200 { color: #6d28d9; }
 html.light .text-pink-300 { color: #be185d; }
 html.light .text-orange-300 { color: #c2410c; }
+html.light .text-teal-300 { color: #0f766e; }
 html.light .text-zinc-300, html.light .text-zinc-200 { color: #3f3f46; }
 
 /* Packet list colouring rules (Wireshark-style), tuned for each theme. */
