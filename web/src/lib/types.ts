@@ -32,7 +32,7 @@ export type EnvFull = { id: string; name: string; description: string; template:
 
 export type DeviceData = {
   kind: string; label: string; host?: string; url?: string; os?: string; ports?: string; notes?: string; tags?: string;
-  zone?: string; status?: "up" | "down" | "unknown";
+  zone?: string; status?: "up" | "down" | "unknown"; owner?: string; docsUrl?: string;
   scan?: { at: string; address: string; open: { port: number; service: string; note: string | null }[] };
   ping?: { at: string; ok: boolean; avg_ms: number | null };
   audit?: { at: string; score: number; issues: number };

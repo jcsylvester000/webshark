@@ -10,17 +10,18 @@ import { authMatrix, STATUS_TEXT } from "./authMatrix";
 import type { OpenApiDoc } from "../openapi/types";
 import type { AuditReport, Canvas, ScanResponse } from "../types";
 import { owaspCheck } from "./owasp";
+import { STRIDE, threatModel, type Threat } from "./threats";
 import { OWASP_API_2023, riskScore, SEVERITY_LABEL, SEVERITY_ORDER, SOURCE_LABEL, STATUS_LABEL, type FindingSource, type SecFinding, type Severity, type Triage } from "./types";
 
 export type ReportSettings = {
   title: string; assessor: string; scope: string; method: string; summary: string;
-  include: Record<FindingSource, boolean> & { matrix: boolean };
+  include: Record<FindingSource, boolean> & { matrix: boolean; threats: boolean };
   minSeverity: Severity;
 };
 export type SecurityState = { triage: Record<string, Triage>; manual: SecFinding[]; report: ReportSettings };
 
 export function emptySecurity(): SecurityState {
-  return { triage: {}, manual: [], report: { title: "", assessor: "", scope: "", method: "", summary: "", include: { api: true, audit: true, scan: true, tests: true, design: true, manual: true, matrix: true }, minSeverity: "low" } };
+  return { triage: {}, manual: [], report: { title: "", assessor: "", scope: "", method: "", summary: "", include: { api: true, audit: true, scan: true, tests: true, design: true, manual: true, matrix: true, threats: true }, minSeverity: "low" } };
 }
 export function normalizeSecurity(raw: Partial<SecurityState> | undefined): SecurityState {
   const e = emptySecurity();
@@ -70,7 +71,7 @@ export function collectFindings(src: Sources, manual: SecFinding[]): SecFinding[
   return out.filter((f) => (seen.has(f.key) ? false : (seen.add(f.key), true))).sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.source.localeCompare(b.source));
 }
 
-export type Assessment = { settings: ReportSettings; findings: (SecFinding & { triage: Triage | null })[]; score: number; counts: Record<Severity, number>; open: number; generatedAt: string; projectName: string; matrix: ReturnType<typeof authMatrix> | null; apiTitle: string | null };
+export type Assessment = { settings: ReportSettings; findings: (SecFinding & { triage: Triage | null })[]; score: number; counts: Record<Severity, number>; open: number; generatedAt: string; projectName: string; matrix: ReturnType<typeof authMatrix> | null; apiTitle: string | null; threats: (Threat & { triage: Triage | null })[] | null };
 
 export function buildAssessment(projectName: string, src: Sources, sec: SecurityState): Assessment {
   const s = sec.report;
@@ -78,7 +79,8 @@ export function buildAssessment(projectName: string, src: Sources, sec: Security
   const counts: Record<Severity, number> = { high: 0, medium: 0, low: 0, info: 0 };
   let open = 0;
   for (const f of all) { const st = sec.triage[f.key]?.status ?? "open"; if (st === "open") { counts[f.severity]++; open++; } }
-  return { settings: s, findings: all.map((f) => ({ ...f, triage: sec.triage[f.key] ?? null })), score: riskScore(all, sec.triage), counts, open, generatedAt: new Date().toISOString(), projectName, matrix: s.include.matrix && src.spec?.info ? authMatrix(src.spec) : null, apiTitle: src.spec?.info?.title ?? null };
+  return { settings: s, findings: all.map((f) => ({ ...f, triage: sec.triage[f.key] ?? null })), score: riskScore(all, sec.triage), counts, open, generatedAt: new Date().toISOString(), projectName, matrix: s.include.matrix && src.spec?.info ? authMatrix(src.spec) : null, apiTitle: src.spec?.info?.title ?? null,
+    threats: s.include.threats ? threatModel(src.canvas).threats.map((t) => ({ ...t, triage: sec.triage[t.key] ?? null })) : null };
 }
 
 export function suggestSummary(a: Assessment): string {
@@ -107,6 +109,11 @@ export function assessmentMarkdown(a: Assessment): string {
   a.findings.forEach((f, i) => {
     L.push(`### ${i + 1}. ${f.title}`, "", `- **Severity:** ${SEVERITY_LABEL[f.severity]}${f.owasp ? ` · **OWASP:** ${f.owasp} ${OWASP_API_2023[f.owasp]}` : ""}`, `- **Where:** ${f.location}`, `- **Source:** ${SOURCE_LABEL[f.source]}`, `- **Status:** ${statusOf(f)}${f.triage?.note ? ` — ${f.triage.note}` : ""}`, "", f.detail, "", `**Recommendation:** ${f.fix}`, "");
   });
+  if (a.threats?.length) {
+    L.push("## Threat model (STRIDE)", "", "| Category | Element | Threat | Mitigation | Status |", "|---|---|---|---|---|");
+    for (const t of a.threats) L.push(`| ${STRIDE[t.stride].name} | ${mdc(t.element)} | ${mdc(t.threat)} | ${mdc(t.triage?.note || t.mitigation)} | ${STATUS_LABEL[t.triage?.status ?? "open"]} |`);
+    L.push("");
+  }
   if (a.matrix?.rows.length) {
     L.push("## Appendix: authentication matrix", "", `| Endpoint | Auth | ${a.matrix.schemes.join(" | ")} | Risk |`, `|---|---|${a.matrix.schemes.map(() => "---|").join("")}---|`);
     for (const r of a.matrix.rows) L.push(`| ${r.method} \`${mdc(r.path)}\` | ${STATUS_TEXT[r.status]} | ${a.matrix.schemes.map((n) => (r.options.some((o) => o.includes(n)) ? "✓" : "")).join(" | ")} | ${mdc(r.risk ?? "")} |`);
@@ -123,6 +130,7 @@ export function assessmentReport(a: Assessment): Report {
     { heading: "Findings", columns: [{ key: "n", label: "#" }, { key: "sev", label: "Severity" }, { key: "title", label: "Finding" }, { key: "location", label: "Where" }, { key: "src", label: "Source" }, { key: "owasp", label: "OWASP" }, { key: "status", label: "Status" }, { key: "fix", label: "Recommendation" }],
       rows: a.findings.map((f, i) => ({ n: i + 1, sev: f.severity, title: f.title, location: f.location, src: SOURCE_LABEL[f.source], owasp: f.owasp, status: statusOf(f) + (f.triage?.note ? `: ${f.triage.note}` : ""), fix: f.fix })) },
   ];
+  if (a.threats?.length) sections.push({ heading: "Threat model (STRIDE)", columns: [{ key: "cat", label: "Category" }, { key: "element", label: "Element" }, { key: "threat", label: "Threat" }, { key: "sev", label: "Severity" }, { key: "mit", label: "Mitigation" }, { key: "status", label: "Status" }], rows: a.threats.map((t) => ({ cat: STRIDE[t.stride].name, element: t.element, threat: t.threat, sev: t.severity, mit: t.triage?.note || t.mitigation, status: STATUS_LABEL[t.triage?.status ?? "open"] })) });
   if (a.matrix?.rows.length) sections.push({ heading: "Authentication matrix", columns: [{ key: "ep", label: "Endpoint" }, { key: "auth", label: "Auth" }, { key: "how", label: "Methods" }, { key: "risk", label: "Risk" }], rows: a.matrix.rows.map((r) => ({ ep: `${r.method} ${r.path}`, auth: STATUS_TEXT[r.status], how: r.options.map((o) => o.join(" + ")).filter(Boolean).join(" or "), risk: r.risk ?? "" })) });
   return { title: s.title || `Security assessment - ${a.projectName}`, subtitle: "Automated checks plus your triage. Not a replacement for a manual penetration test.", meta: [["Project", a.projectName], ["Assessor", s.assessor || "-"], ["Risk score", `${a.score}/100`], ["Findings", `${a.findings.length} (${a.open} open)`]], sections };
 }

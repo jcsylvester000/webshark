@@ -10,7 +10,7 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.6)
+## Features (v0.7)
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
   random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
   change their password, see and sign out sessions, and delete the account.
@@ -43,6 +43,20 @@ Data lives in **Neon** serverless Postgres.
   plus findings you add), with a risk score, title, assessor, scope, method and executive summary
   (auto-written on request). Export as PDF, Markdown or CSV; optionally share it read-only (off by
   default; built on the server so raw project data never leaves it).
+- **Phase 3 docs (v0.7)**:
+  - **Public versions (OpenAPI Overlay 1.0):** mark endpoints or tags *Internal*; export a public
+    version or the overlay file, and apply overlay files on import. Share links always show the public version.
+  - **OpenAPI 3.2 tag tree:** child groups (`parent`) nest in the reference navigation.
+  - **Events (AsyncAPI 3.0, 2.x read):** draft from queues on the diagram, import, read as a reference,
+    edit as YAML/JSON, check, export YAML/JSON/Markdown, include in share links.
+  - **Arazzo 1.0 ↔ batch tests:** export/import scenarios as Arazzo workflows (steps that match
+    documented operations use operationId + successCriteria); generate a scenario from the API docs
+    (public GETs answer as documented, protected ones refuse missing credentials).
+  - **Threat model (STRIDE):** generated from zones, data flows, internet-facing parts, attack paths
+    and vulnerabilities, with mitigation notes; part of the security report and its share.
+  - **Layout docs:** architecture document from the diagram (overview, trust zones, inventory with
+    owner and runbook, data flows, APIs/events linked to the docs, security posture) with per-section
+    intros; export Markdown/PDF/CSV. Shared links also show data flows.
 - **Workspaces → projects**: organize work into workspaces. Each project keeps its full working
   state: canvas, icons, links, API collections and variables, scanner settings and last results,
   console history, batch scenarios, test results and notes.
@@ -116,8 +130,8 @@ web/scripts/migrate.mjs      migrations + optional test-user seed
 web/src/app/api/             auth/*, commands/[name], queries/*, tools/*, health
 web/src/server/              server-only: db, auth, config, cqrs/ (commands, queries), tools/ (target, ping, portscan, httpClient, audit)
 web/src/app/dashboard/       overview, workspaces, projects/[id] (workbench), runs, scratch tools, captures
-web/src/components/          Shell, designer/*, docs/* (API docs: editor, reference, Try it, auth matrix, security check), security/* (FindingsList, SecurityReport), ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
-web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, openapi/* (model, generator, validator, YAML/JSON I/O), security/* (owasp, authMatrix, assessment, triage), pcap/*
+web/src/components/          Shell, designer/*, docs/* (API docs: editor, reference, Try it, auth matrix, security check), security/* (FindingsList, SecurityReport, ThreatModel), docs/EventsDocs, LayoutDocs, ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
+web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, openapi/* (model, generator, validator, YAML/JSON I/O), security/* (owasp, authMatrix, assessment, triage, threats), openapi/{arazzo,overlay}, asyncapi, layout, pcap/*
 samples/                     slyshark-demo.pcap + generator
 ```
 

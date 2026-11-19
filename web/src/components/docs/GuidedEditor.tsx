@@ -154,9 +154,10 @@ function TagsForm({ doc, onChange }: { doc: OpenApiDoc; onChange: (d: OpenApiDoc
       <h2 className="flex items-center text-base font-semibold">Groups / tags<HelpTip>Tags group related endpoints in the reference, e.g. Users, Orders, Admin. Renaming a tag here updates every endpoint that uses it.</HelpTip></h2>
       {tags.map((t, i) => (
         <div key={i} className="panel space-y-3 p-3">
-          <div className="grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
+          <div className="grid gap-3 sm:grid-cols-[12rem_1fr_auto_auto]">
             <Text label="Name" value={t.name} onChange={(v) => rename(i, v)} />
             <Text label="Description" value={t.description} onChange={(description) => set(i, { description })} />
+            <label className="flex items-center gap-1.5 self-end pb-2 text-xs" title="Hide this group's endpoints from the public version"><input type="checkbox" checked={t["x-internal"] === true} onChange={(e) => onChange({ ...doc, tags: tags.map((x, j) => (j === i ? clean({ ...x, "x-internal": e.target.checked || undefined }) : x)) })} />Internal</label>
             <button className="self-end pb-2 text-muted hover:text-danger" aria-label={`Remove tag ${t.name}`} onClick={() => onChange({ ...doc, tags: tags.filter((_, j) => j !== i) })}><Trash2 size={15} /></button>
           </div>
           {v32 && <div className="grid gap-3 sm:grid-cols-3">

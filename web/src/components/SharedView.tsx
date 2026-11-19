@@ -12,6 +12,10 @@ import { runReport } from "@/lib/reports";
 import type { OpenApiDoc } from "@/lib/openapi/types";
 import type { Canvas } from "@/lib/types";
 import { Reference } from "./docs/Reference";
+import { EventsReference } from "./docs/EventsDocs";
+import { ThreatModel } from "./security/ThreatModel";
+import { viewOf } from "@/lib/asyncapi";
+import { layoutModel } from "@/lib/layout";
 import { FindingsList, SEV_CLASS } from "./security/FindingsList";
 import { assessmentMarkdown, assessmentReport, suggestSummary, type Assessment } from "@/lib/security/assessment";
 import { SEVERITY_LABEL } from "@/lib/security/types";
@@ -24,7 +28,7 @@ import { Tags } from "./ProjectBadges";
 import { Time } from "./Time";
 
 type Run = { id: string; scenario_name: string; started_at: string; finished_at: string; total: number; passed: number; failed: number; errored: number; results: StepResult[] };
-type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; apiSpec: OpenApiDoc | null; report: Assessment | null; runs: Run[] };
+type Data = { locked: false; label: string; project: { name: string; description: string; tags: string[]; stage: string; savedAt: string; version: number; owner: string }; canvas: Canvas; notes: string | null; apiSpec: OpenApiDoc | null; eventsSpec: Record<string, unknown> | null; report: Assessment | null; runs: Run[] };
 const nodeTypes = { device: DeviceNode };
 const edgeTypes = { link: LinkEdge };
 
@@ -103,6 +107,18 @@ export function SharedView() {
             <tbody>{!assets.length && <tr><td colSpan={5} className="px-4 py-4 text-center text-muted">No components documented yet.</td></tr>}{assets.map((n) => <tr key={n.id} className="border-t border-line/60"><td className="px-4 py-1.5">{n.data.label}</td><td className="px-4 py-1.5 text-muted">{kindOf(n.data.kind).label}</td><td className="px-4 py-1.5 font-mono text-xs">{n.data.url || nodeTarget(n.data) || "—"}</td><td className="px-4 py-1.5 text-muted">{n.data.zone || "—"}</td><td className="px-4 py-1.5 font-mono text-xs">{n.data.ports || "—"}</td></tr>)}</tbody></table>
         </section>
         {data.notes && <section className="panel p-4"><h2 className="font-medium">Notes</h2><pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-muted">{data.notes}</pre></section>}
+        {(() => { const lm = layoutModel({ name: data.project.name, description: "", savedAt: null, canvas: data.canvas, spec: null, asyncSpec: null, posture: null }); return lm.flows.length > 0 && (
+          <section className="panel overflow-x-auto" aria-label="Data flows">
+            <div className="border-b border-line px-4 py-3"><h2 className="font-medium">Data flows ({lm.flows.length})</h2></div>
+            <table className="w-full text-sm"><thead className="text-left text-xs uppercase tracking-wider text-muted"><tr><th className="px-4 py-2">From</th><th className="px-4 py-2">To</th><th className="px-4 py-2">Protocol / port</th><th className="px-4 py-2">Encrypted</th><th className="px-4 py-2">Purpose</th></tr></thead>
+              <tbody>{lm.flows.map((f) => <tr key={f.id} className="border-t border-line/60"><td className="px-4 py-1.5">{f.from}<span className="block text-xs text-muted">{f.fromZone}</span></td><td className="px-4 py-1.5">{f.to}<span className="block text-xs text-muted">{f.toZone}</span></td><td className="px-4 py-1.5 font-mono text-xs">{f.protocol || "—"}{f.port ? `:${f.port}` : ""}</td><td className="px-4 py-1.5">{f.encrypted ? "yes" : "no"}</td><td className="px-4 py-1.5 text-muted">{f.label || "—"}</td></tr>)}</tbody></table>
+          </section>); })()}
+        {data.eventsSpec && (
+          <section className="panel overflow-hidden" aria-label="Events reference">
+            <div className="border-b border-line px-4 py-3"><h2 className="font-medium">Events (AsyncAPI)</h2></div>
+            <EventsReference v={viewOf(data.eventsSpec)} raw={data.eventsSpec} embedded />
+          </section>
+        )}
         {data.apiSpec?.info && (
           <section className="panel overflow-hidden" aria-label="API reference">
             <div className="border-b border-line px-4 py-3"><h2 className="font-medium">API reference</h2></div>
@@ -149,6 +165,7 @@ function SharedReport({ a }: { a: Assessment }) {
         {s.method && <p className="whitespace-pre-wrap text-muted"><b className="text-ink">Method: </b>{s.method}</p>}
         {s.assessor && <p className="text-xs text-muted">Assessor: {s.assessor}</p>}
         <FindingsList findings={a.findings} defaultStatus="all" empty="No findings recorded." />
+        {a.threats && a.threats.length > 0 && <ThreatModel threats={a.threats} />}
       </div>
     </section>
   );

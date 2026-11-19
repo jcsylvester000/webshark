@@ -64,7 +64,10 @@ export function OperationForm({ doc, op, onChange, onMoved, onDeleted, issues }:
       <div className="grid gap-3 sm:grid-cols-3">
         <TagSelect doc={doc} value={o.tags?.[0] ?? ""} onChange={(t) => set({ tags: t ? [t] : undefined })} />
         <Text label="Operation ID" mono value={o.operationId} onChange={(operationId) => set({ operationId })} hint="A unique name code generators use." />
-        <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" checked={!!o.deprecated} onChange={(e) => set({ deprecated: e.target.checked || undefined })} />Deprecated</label>
+        <div className="space-y-1 pt-5 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={!!o.deprecated} onChange={(e) => set({ deprecated: e.target.checked || undefined })} />Deprecated</label>
+          <label className="flex items-center gap-2" title="Left out of the public version and share links"><input type="checkbox" checked={o["x-internal"] === true} onChange={(e) => set({ "x-internal": e.target.checked || undefined })} />Internal only</label>
+        </div>
       </div>
 
       <fieldset className="panel space-y-2 p-3">

@@ -90,6 +90,10 @@ export function Inspector(p: Props) {
               <Field label="Zone" value={d.zone} onChange={(v) => set({ zone: v })} placeholder="Private subnet" />
             </div>
             <Field label="Documented ports" value={d.ports} onChange={(v) => set({ ports: v })} placeholder={k.ports ?? "22,443"} mono />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Owner" value={d.owner as string | undefined} onChange={(v) => set({ owner: v })} placeholder="Team or person" />
+              <Field label="Runbook / docs link" value={d.docsUrl as string | undefined} onChange={(v) => set({ docsUrl: v })} placeholder="https://wiki/…" mono />
+            </div>
           </>
         )}
         <Field label="Tags" value={d.tags} onChange={(v) => set({ tags: v })} placeholder="prod, pci" />

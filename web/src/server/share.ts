@@ -7,6 +7,7 @@ import "server-only";
 import type { BatchRun } from "@/lib/batch";
 import type { OpenApiDoc } from "@/lib/openapi/types";
 import { buildAssessment, normalizeSecurity, type SecurityState } from "@/lib/security/assessment";
+import { publicVersion } from "@/lib/openapi/overlay";
 import type { AuditReport, Canvas, ScanResponse } from "@/lib/types";
 import { createHash } from "node:crypto";
 import { hashToken, verifyPassword } from "./auth";
@@ -44,6 +45,7 @@ export async function shareContent(s: ShareRow) {
   const [p] = await sql`SELECT p.name, p.description, p.tags, p.stage, p.saved_at, p.state_version, p.state->'canvas' AS canvas,
                                CASE WHEN ${s.include_notes} THEN p.state->>'notes' ELSE NULL END AS notes,
                                CASE WHEN ${s.include_api_docs} THEN p.state->'docs'->'api'->'spec' ELSE NULL END AS api_spec,
+                               CASE WHEN ${s.include_api_docs} THEN p.state->'docs'->'events'->'spec' ELSE NULL END AS events_spec,
                                CASE WHEN ${s.include_report} THEN jsonb_build_object('spec', p.state->'docs'->'api'->'spec', 'security', p.state->'docs'->'security', 'audit', p.state->'scanner'->'lastAudit', 'scan', p.state->'scanner'->'lastScan', 'run', p.state->'batch'->'lastRun') ELSE NULL END AS report_src, u.display_name, u.username
                         FROM projects p JOIN users u ON u.id = p.owner_id WHERE p.id = ${s.project_id}`;
   if (!p) throw notFound();
@@ -54,7 +56,8 @@ export async function shareContent(s: ShareRow) {
   await sql`UPDATE share_links SET view_count = view_count + 1, last_viewed_at = now() WHERE id = ${s.id}`;
   return {
     label: s.label, project: { name: p.name, description: p.description, tags: p.tags, stage: p.stage, savedAt: p.saved_at, version: p.state_version, owner: p.display_name ?? p.username },
-    canvas: p.canvas ?? { nodes: [], edges: [] }, notes: p.notes, apiSpec: p.api_spec ?? null, report: reportOf(p), runs,
+    canvas: p.canvas ?? { nodes: [], edges: [] }, notes: p.notes, // Shared API docs are always the PUBLIC version: endpoints marked internal are removed.
+    apiSpec: p.api_spec?.info ? publicVersion(p.api_spec as OpenApiDoc) : null, eventsSpec: p.events_spec ?? null, report: reportOf(p), runs,
   };
 }
 

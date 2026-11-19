@@ -4,12 +4,15 @@
  * "Save project"). A run executes in the browser; its results are stored only when the user
  * clicks "Save run" (command `batch.saveRun`). Saved runs are read back with queries.
  */
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Play, Plus, Save, Square, Trash2, Wand2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, Copy, FileDown, FileUp, Play, Plus, Save, Square, Trash2, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errMsg } from "@/lib/api";
 import { runScenario, SCENARIO_TEMPLATES, STEP_LABEL, uid, type BatchRun, type Scenario, type Step, type StepResult, type StepType } from "@/lib/batch";
 import { command, query, type RunSummary } from "@/lib/cqrs";
 import { scenarioFromCanvas } from "@/lib/project";
+import { fromArazzo, scenarioFromSpec, toArazzo } from "@/lib/openapi/arazzo";
+import { parseDoc, toText } from "@/lib/openapi/io";
+import { fileSlug } from "@/lib/export";
 import { runReport } from "@/lib/reports";
 import { useProjects } from "@/lib/store";
 import { dialogs } from "./Dialogs";
@@ -93,6 +96,8 @@ export function BatchTests({ projectId }: { projectId: string }) {
   const [viewRun, setViewRun] = useState<(BatchRun & { savedId?: string }) | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const arazzoRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [openStep, setOpenStep] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -142,6 +147,25 @@ export function BatchTests({ projectId }: { projectId: string }) {
     } catch (e) { setError(errMsg(e)); }
   }
 
+  function exportArazzo(list: Scenario[]) {
+    if (!project) return;
+    const r = toArazzo(list, project.state.docs.api.spec, project.meta.name);
+    const url = URL.createObjectURL(new Blob([toText(r.doc as never, "yaml")], { type: "application/yaml" }));
+    const a = document.createElement("a"); a.href = url; a.download = `${fileSlug(list.length === 1 ? list[0].name : project.meta.name)}.arazzo.yaml`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setInfo(`Exported ${list.length} workflow${list.length === 1 ? "" : "s"}: ${r.linked} step${r.linked === 1 ? "" : "s"} linked to API docs operations, ${r.extension} kept as Slyshark extensions.`);
+  }
+  async function importArazzo(f: File) {
+    setError(null); setInfo(null);
+    const p = parseDoc(await f.text());
+    if (!p.ok) return setError(`Couldn't read ${f.name}: ${p.message}`);
+    try {
+      const r = fromArazzo(p.doc, project?.state.docs.api.spec ?? null);
+      if (!r.scenarios.length) return setError("No workflows found in that file.");
+      setBatch((b) => ({ scenarios: [...b.scenarios, ...r.scenarios], activeScenarioId: r.scenarios[0].id }));
+      setInfo(`Imported ${r.scenarios.length} workflow${r.scenarios.length === 1 ? "" : "s"} as scenarios${r.skipped.length ? `; ${r.skipped.length} step${r.skipped.length === 1 ? "" : "s"} skipped (${r.skipped.slice(0, 2).join("; ")})` : ""}.`);
+    } catch (e) { setError(errMsg(e)); }
+  }
+
   if (!project) return null;
   const steps = sc?.steps ?? [];
   const runningRows = running && sc ? steps.filter((s) => s.enabled && s.target.trim()).map((s) => live[s.id] ?? { stepId: s.id, name: s.name || STEP_LABEL[s.type], type: s.type, target: s.target, status: "running" as const }) : null;
@@ -166,6 +190,13 @@ export function BatchTests({ projectId }: { projectId: string }) {
           </select>
           <button className="btn w-full justify-center text-xs" onClick={() => { const s = scenarioFromCanvas(project.state.canvas, `Canvas checks — ${project.meta.name}`); if (!s.steps.length) setError("No canvas nodes have a host or URL yet."); else addScenario(s); }}><Wand2 size={13} />Generate from canvas</button>
         </div>
+        <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+          <div className="flex items-center text-xs font-medium uppercase tracking-wider text-muted">API workflows<HelpTip>Arazzo is the OpenAPI Initiative&apos;s format for ordered API calls with success criteria. Export a scenario to share it with other API tools, or import one. Steps that match an endpoint in your API docs become real Arazzo steps; DNS, ping, scan and audit steps are kept as Slyshark extensions.</HelpTip></div>
+          <button className="btn w-full justify-center text-xs" disabled={!project.state.docs.api.spec} title={project.state.docs.api.spec ? "Public GET endpoints should answer as documented; protected ones should refuse requests without credentials" : "Write API docs first (API docs tab)"} onClick={() => { const r = scenarioFromSpec(project.state.docs.api.spec!, `API docs checks — ${project.state.docs.api.spec!.info.title}`); if (!r.scenario.steps.length) setError(`No endpoint could be turned into a test: ${r.skipped.slice(0, 3).join("; ")}`); else { addScenario(r.scenario); setInfo(`Created ${r.scenario.steps.length} steps from the API docs${r.skipped.length ? `; skipped ${r.skipped.length} (${r.skipped.slice(0, 2).join("; ")})` : ""}.`); } }}><BookOpen size={13} />Generate from API docs</button>
+          <button className="btn w-full justify-center text-xs" onClick={() => arazzoRef.current?.click()}><FileUp size={13} />Import Arazzo…</button>
+          <button className="btn w-full justify-center text-xs" disabled={!scenarios.length} onClick={() => exportArazzo(scenarios)}><FileDown size={13} />Export all as Arazzo</button>
+          <input ref={arazzoRef} type="file" accept=".yaml,.yml,.json" className="hidden" aria-label="Import Arazzo file" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importArazzo(f); }} />
+        </div>
         <div className="mt-4 border-t border-line pt-3">
           <div className="mb-1.5 text-sm font-medium">Saved runs</div>
           {runs.map((r) => (
@@ -183,6 +214,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
 
       <section className="min-w-0 space-y-4 p-5">
         {error && <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+        {info && <p role="status" className="rounded-md border border-fin/40 bg-fin/5 px-3 py-2 text-sm">{info}</p>}
         {sc ? (
           <>
             <div className="flex flex-wrap items-end gap-3">
@@ -190,6 +222,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
               <label className="block w-28 text-xs text-muted">Parallel steps<select className="input mt-0.5" value={sc.concurrency} onChange={(e) => setScenario({ concurrency: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n}>{n}</option>)}</select></label>
               <Flag label="Stop on first failure" value={sc.stopOnFail} onChange={(v) => setScenario({ stopOnFail: v })} />
               <button className="btn" onClick={() => addScenario({ ...structuredClone(sc), id: uid(), name: `${sc.name} (copy)` })}><Copy size={14} />Duplicate</button>
+              <button className="btn" onClick={() => exportArazzo([sc])} title="Download this scenario as an Arazzo workflow"><FileDown size={14} />Arazzo</button>
               <button className="btn-danger" aria-label="Delete scenario" title="Delete scenario" onClick={async () => { if (await dialogs.confirm({ title: `Delete scenario “${sc.name}”?`, message: "Saved runs are kept. This becomes permanent when you save the project.", danger: true })) setBatch((b) => ({ scenarios: b.scenarios.filter((x) => x.id !== sc.id), activeScenarioId: null })); }}><Trash2 size={14} /></button>
             </div>
 

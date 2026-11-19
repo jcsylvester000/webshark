@@ -4,28 +4,33 @@
  * triage them and add their own, and exports a branded PDF, Markdown or CSV. Saved with the project.
  */
 import { FileText, Plus, Sparkles } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { fileSlug } from "@/lib/export";
 import { assessmentMarkdown, assessmentReport, buildAssessment, suggestSummary } from "@/lib/security/assessment";
 import { setManual, setReport, setTriage } from "@/lib/security/triage";
 import { SEVERITY_LABEL, SOURCE_LABEL, type FindingSource, type SecFinding, type Severity } from "@/lib/security/types";
+import { threatModel } from "@/lib/security/threats";
 import { useProjects } from "@/lib/store";
 import { dialogs } from "../Dialogs";
 import { ExportMenu } from "../ExportMenu";
 import { HelpTip } from "../HelpTip";
 import { Time } from "../Time";
 import { FindingsList, SEV_CLASS } from "./FindingsList";
+import { ThreatModel } from "./ThreatModel";
 
 const SOURCES: FindingSource[] = ["api", "audit", "scan", "tests", "design", "manual"];
 
 export function SecurityReport({ projectId }: { projectId: string }) {
   const project = useProjects((s) => s.loaded[projectId]);
   const id = useId();
+  const [pane, setPane] = useState<"findings" | "threats">("findings");
   if (!project) return null;
   const st = project.state;
   const sec = st.docs.security;
   const s = sec.report;
   const a = buildAssessment(project.meta.name, { spec: st.docs.api.spec, audit: st.scanner.lastAudit, scan: st.scanner.lastScan, run: st.batch.lastRun, canvas: st.canvas }, sec);
+  const tm = threatModel(st.canvas);
+  const threats = tm.threats.map((t) => ({ ...t, triage: sec.triage[t.key] ?? null }));
   const vulnNodes = st.canvas.nodes.filter((n) => n.data.kind === "vulnerability").length;
   const sourceState: Record<FindingSource, { ready: boolean; text: React.ReactNode }> = {
     api: { ready: !!st.docs.api.spec, text: st.docs.api.spec ? `${st.docs.api.spec.info.title}: OWASP API Top 10 check` : "No API docs yet (API docs tab)" },
@@ -69,8 +74,9 @@ export function SecurityReport({ projectId }: { projectId: string }) {
           <legend className="px-1 text-xs font-medium uppercase tracking-wider text-muted">Include</legend>
           {SOURCES.map((src) => (
             <label key={src} className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={s.include[src]} onChange={(e) => setReport(projectId, { include: { ...s.include, [src]: e.target.checked } })} />
-              <span><span className="font-medium">{SOURCE_LABEL[src]}</span><span className={`block text-xs ${sourceState[src].ready ? "text-muted" : "text-muted/80 italic"}`}>{sourceState[src].text}</span></span></label>
+              <span><span className="font-medium">{SOURCE_LABEL[src]}</span><span className={`block text-xs ${sourceState[src].ready ? "text-muted" : "italic text-muted"}`}>{sourceState[src].text}</span></span></label>
           ))}
+          <label className="flex items-center gap-2"><input type="checkbox" checked={s.include.threats} onChange={(e) => setReport(projectId, { include: { ...s.include, threats: e.target.checked } })} /><span className="font-medium">Threat model (STRIDE)</span></label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={s.include.matrix} onChange={(e) => setReport(projectId, { include: { ...s.include, matrix: e.target.checked } })} /><span className="font-medium">Authentication matrix appendix</span></label>
           <div className="pt-2"><label className="label" htmlFor={`${id}-min`}>Lowest severity to include</label>
             <select id={`${id}-min`} className="input py-1 text-xs" value={s.minSeverity} onChange={(e) => setReport(projectId, { minSeverity: e.target.value as Severity })}>{(["high", "medium", "low", "info"] as const).map((v) => <option key={v} value={v}>{SEVERITY_LABEL[v]}{v === "info" ? " (everything)" : " and above"}</option>)}</select></div>
@@ -87,8 +93,12 @@ export function SecurityReport({ projectId }: { projectId: string }) {
             <ExportMenu small disabled={!a.findings.length} build={() => assessmentReport(a)} />
           </div>
         </div>
+        <div className="flex rounded-md border border-line p-0.5 text-sm" role="group" aria-label="Report section">
+          {([["findings", `Findings (${a.findings.length})`], ["threats", `Threat model (${threats.length})`]] as const).map(([k, l]) => <button key={k} aria-pressed={pane === k} className={`flex-1 rounded px-3 py-1 ${pane === k ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`} onClick={() => setPane(k)}>{l}</button>)}
+        </div>
+        {pane === "threats" ? <ThreatModel threats={threats} boundaries={tm.boundaries} flows={tm.flows} onTriage={(k, t) => setTriage(projectId, k, t)} /> :
         <FindingsList findings={a.findings} onTriage={(k, t) => setTriage(projectId, k, t)} onDelete={(k) => setManual(projectId, (all) => all.filter((f) => f.key !== k))}
-          empty="No findings yet. Run a web audit or port scan, write API docs, run batch tests, document vulnerabilities on the diagram, or add a finding yourself." />
+          empty="No findings yet. Run a web audit or port scan, write API docs, run batch tests, document vulnerabilities on the diagram, or add a finding yourself." />}
       </section>
     </div>
   );

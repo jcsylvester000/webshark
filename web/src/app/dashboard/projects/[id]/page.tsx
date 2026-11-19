@@ -11,6 +11,7 @@ import { ApiClient } from "@/components/ApiClient";
 import { BatchTests } from "@/components/BatchTests";
 import { ApiDocs } from "@/components/docs/ApiDocs";
 import { SecurityReport } from "@/components/security/SecurityReport";
+import { LayoutDocs } from "@/components/LayoutDocs";
 import { Designer } from "@/components/designer/Designer";
 import { dialogs } from "@/components/Dialogs";
 import { HistoryDrawer } from "@/components/HistoryDrawer";
@@ -25,7 +26,7 @@ import { ApiError, errMsg } from "@/lib/api";
 import { command } from "@/lib/cqrs";
 import { useProjects } from "@/lib/store";
 
-const TABS = [["design", "Design"], ["console", "Console"], ["api", "API client"], ["docs", "API docs"], ["scanner", "Scanner & audit"], ["batch", "Batch tests"], ["report", "Security report"], ["results", "Results"], ["notes", "Notes"]] as const;
+const TABS = [["design", "Design"], ["console", "Console"], ["api", "API client"], ["docs", "API docs"], ["scanner", "Scanner & audit"], ["batch", "Batch tests"], ["report", "Security report"], ["layout", "Layout docs"], ["results", "Results"], ["notes", "Notes"]] as const;
 type TabId = (typeof TABS)[number][0];
 
 export default function ProjectPage() {
@@ -117,6 +118,7 @@ export default function ProjectPage() {
         {visited.has("docs") && <div className={`absolute inset-0 ${tab === "docs" ? "" : "hidden"}`}><ApiDocs projectId={id} onOpenReport={() => go("report")} /></div>}
         {visited.has("scanner") && <div className={`absolute inset-0 overflow-auto ${tab === "scanner" ? "" : "hidden"}`}><Scanner projectId={id} /></div>}
         {visited.has("batch") && <div className={`absolute inset-0 overflow-auto ${tab === "batch" ? "" : "hidden"}`}><BatchTests projectId={id} /></div>}
+        {tab === "layout" && <div className="absolute inset-0 overflow-auto"><LayoutDocs projectId={id} onOpen={(t) => go(t)} /></div>}
         {tab === "report" && <div className="absolute inset-0 overflow-auto"><SecurityReport projectId={id} /></div>}
         {tab === "results" && <div className="absolute inset-0 overflow-auto"><ResultsPanel projectId={id} /></div>}
         {tab === "notes" && (

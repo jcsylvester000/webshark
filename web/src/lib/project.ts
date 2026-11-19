@@ -3,6 +3,8 @@ import { nodeTarget } from "./nodes";
 import { uid, type BatchRun, type Scenario, type Step } from "./batch";
 import type { ApiDocState } from "./openapi/types";
 import { emptySecurity, normalizeSecurity, type SecurityState } from "./security/assessment";
+import type { AsyncDocState } from "./asyncapi";
+import { emptyLayout, normalizeLayout, type LayoutSettings } from "./layout";
 import type { AuditReport, Canvas, HttpRequestSpec, KeyValue, ScanResponse } from "./types";
 
 /** `sample` is the last response captured in the API client; it feeds examples in the API docs draft. */
@@ -20,7 +22,7 @@ export type ProjectState = {
   results: ResultEntry[];
   notes: string;
   /** Documentation authored in the Docs tab (OpenAPI for now). */
-  docs: { api: ApiDocState; security: SecurityState };
+  docs: { api: ApiDocState; security: SecurityState; events: AsyncDocState; layout: LayoutSettings };
 };
 
 export type ProjectMeta = { id: string; workspaceId: string | null; workspaceName: string; name: string; description: string; template: string | null; status: string; tags: string[]; stage: string; pinned: boolean };
@@ -37,7 +39,7 @@ export function emptyState(): ProjectState {
     batch: { scenarios: [], activeScenarioId: null, lastRun: null },
     results: [],
     notes: "",
-    docs: { api: { spec: null, format: "yaml", updatedAt: null }, security: emptySecurity() },
+    docs: { api: { spec: null, format: "yaml", updatedAt: null }, security: emptySecurity(), events: { spec: null, format: "yaml", updatedAt: null }, layout: emptyLayout() },
   };
 }
 
@@ -54,7 +56,7 @@ export function normalizeState(raw: unknown): ProjectState {
     batch: { ...e.batch, ...s.batch },
     results: s.results ?? [],
     notes: s.notes ?? "",
-    docs: { api: { ...e.docs.api, ...s.docs?.api }, security: normalizeSecurity(s.docs?.security) },
+    docs: { api: { ...e.docs.api, ...s.docs?.api }, security: normalizeSecurity(s.docs?.security), events: { spec: null, format: "yaml" as const, updatedAt: null, ...s.docs?.events }, layout: normalizeLayout(s.docs?.layout) },
   };
 }
 

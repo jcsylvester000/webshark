@@ -156,3 +156,25 @@ export function exampleFor(doc: OpenApiDoc, s: Schema | undefined, depth = 0): u
   if (r.format === "uuid") return "00000000-0000-0000-0000-000000000000";
   return "string";
 }
+
+/** Tag groups in tree order (OpenAPI 3.2 `parent`), with depth, display label and kind. */
+export type TagNode = { name: string; label: string; depth: number; kind?: string; description?: string; ops: OpRef[] };
+export function tagTree(doc: OpenApiDoc, list = ops(doc)): TagNode[] {
+  const groups = new Map(groupByTag(doc, list));
+  const tags = doc.tags ?? [];
+  const known = new Set(tags.map((t) => t.name));
+  const kids = (parent: string | undefined) => tags.filter((t) => (parent ? t.parent === parent : !t.parent || !known.has(t.parent)));
+  const out: TagNode[] = [];
+  const hasOps = (name: string, d = 0): boolean => (groups.get(name)?.length ?? 0) > 0 || (d < 8 && kids(name).some((k) => hasOps(k.name, d + 1)));
+  const walk = (parent: string | undefined, depth: number, seen: Set<string>) => {
+    for (const t of kids(parent)) {
+      if (seen.has(t.name) || depth > 6 || !hasOps(t.name)) continue;
+      seen.add(t.name);
+      out.push({ name: t.name, label: t.summary || t.name, depth, kind: t.kind, description: t.description, ops: groups.get(t.name) ?? [] });
+      walk(t.name, depth + 1, seen);
+    }
+  };
+  walk(undefined, 0, new Set());
+  for (const [name, o] of groups) if (!out.some((x) => x.name === name)) out.push({ name, label: name, depth: 0, ops: o });
+  return out;
+}
