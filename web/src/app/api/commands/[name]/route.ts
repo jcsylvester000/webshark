@@ -12,5 +12,5 @@ export const POST = handle(async (req: NextRequest, ctx: RouteContext<"/api/comm
   const { name } = await ctx.params;
   const run = Object.hasOwn(commands, name) ? commands[name] : undefined;
   if (!run) throw notFound();
-  return NextResponse.json(await run(user.id, await readJson<Record<string, unknown>>(req)));
+  return NextResponse.json(await run({ userId: user.id, sessionHash: user.sessionHash }, await readJson<Record<string, unknown>>(req)));
 });

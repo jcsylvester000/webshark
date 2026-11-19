@@ -6,6 +6,7 @@
 import { Radar, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { ExportMenu } from "./ExportMenu";
+import { HelpTip } from "./HelpTip";
 import { api, errMsg } from "@/lib/api";
 import { auditReport, scanReport } from "@/lib/reports";
 import { scanPorts } from "@/lib/scan";
@@ -90,7 +91,7 @@ export function Scanner({ projectId }: { projectId: string }) {
         {scan && (
           <div className="panel">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 className="font-medium">Ports on {scan.target} <span className="font-mono text-sm text-muted">({scan.address})</span></h2>
+              <h2 className="font-medium">Ports on {scan.target}<HelpTip>A port scan checks which services answer. Only scan systems you own or have permission to test.</HelpTip> <span className="font-mono text-sm text-muted">({scan.address})</span></h2>
               <div className="flex items-center gap-4 font-mono text-xs text-muted">
                 <span className="text-emerald-300">{scan.open.length} open</span><span>{scan.closed_count} closed</span><span>{scan.filtered_count} filtered</span><span>{scan.duration_ms} ms</span>
                 <label className="flex items-center gap-1.5 font-sans"><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />show all</label>
@@ -98,7 +99,7 @@ export function Scanner({ projectId }: { projectId: string }) {
               </div>
             </div>
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wider text-muted"><tr><th className="px-4 py-2">Port</th><th className="px-4 py-2">State</th><th className="px-4 py-2">Service</th><th className="px-4 py-2">RTT</th><th className="px-4 py-2">Banner</th><th className="px-4 py-2">Note</th></tr></thead>
+              <thead className="text-left text-xs uppercase tracking-wider text-muted"><tr><th className="px-4 py-2">Port</th><th className="px-4 py-2">State<HelpTip>Open: a service answered. Closed: the host replied &ldquo;nothing here&rdquo;. Filtered: no reply, usually a firewall.</HelpTip></th><th className="px-4 py-2">Service</th><th className="px-4 py-2">RTT<HelpTip>Round-trip time: how long the connection took, in milliseconds.</HelpTip></th><th className="px-4 py-2">Banner<HelpTip>The first text a service sends. It often reveals software and version, which attackers look for.</HelpTip></th><th className="px-4 py-2">Note</th></tr></thead>
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.port} className="border-t border-line/60">
@@ -117,7 +118,7 @@ export function Scanner({ projectId }: { projectId: string }) {
         {audit && (
           <div className="panel">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <h2 className="font-medium">Web audit · <span className="font-mono text-sm text-muted">{audit.final_url}</span></h2>
+              <h2 className="font-medium">Web audit<HelpTip>Checks the site&apos;s security settings: HTTPS, security headers, cookies, CORS and exposed files. Severity: High = fix first, Medium = important, Low = good practice, Info = worth knowing, Pass = done right. It never sends attack payloads.</HelpTip> · <span className="font-mono text-sm text-muted">{audit.final_url}</span></h2>
               <div className="flex items-center gap-3"><ExportMenu small build={() => auditReport(audit, project?.meta.name)} /><span className={`rounded-md px-2 py-1 font-mono text-sm font-bold ${audit.score >= 80 ? SEV.pass : audit.score >= 50 ? SEV.low : SEV.high}`}>{audit.score}/100</span></div>
             </div>
             <div className="divide-y divide-line/60">

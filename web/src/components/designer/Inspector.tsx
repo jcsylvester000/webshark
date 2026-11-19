@@ -17,6 +17,7 @@ type Props = {
   onTool: (tool: "ping" | "scan" | "audit", id: string, ports?: string) => void;
   onConsole: (id: string) => void;
   busy: string | null;
+  onEditDetails?: () => void;
 };
 
 function Field({ label, value, onChange, placeholder, mono, area }: { label: string; value?: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean; area?: boolean }) {
@@ -63,6 +64,7 @@ export function Inspector(p: Props) {
     return (
       <div className="space-y-3 p-4">
         <div className="flex items-center gap-2"><k.icon size={18} style={{ color: k.color }} /><h2 className="text-sm font-semibold">{k.label}</h2></div>
+        {k.desc && <p className="text-xs text-muted">{k.desc}</p>}
         <Field label="Name" value={d.label} onChange={(v) => set({ label: v })} />
         <div>
           <label className="label" htmlFor="kind">Type</label>
@@ -96,7 +98,7 @@ export function Inspector(p: Props) {
         {canTest && (
           <div className="space-y-2 rounded-md border border-line p-3">
             <div className="text-xs font-medium uppercase tracking-wider text-muted">Test {target}</div>
-            {!p.env.meta.authorized && <p className="text-xs text-amber-300">Confirm authorization in environment settings (click empty canvas) before scanning or auditing.</p>}
+            {!p.env.meta.authorized && <p className="text-xs text-amber-300">Before scanning or auditing: click an empty spot on the canvas and tick &ldquo;I own the hosts…&rdquo;. Ping works without it.</p>}
             <div className="flex flex-wrap gap-1.5">
               <button className="btn" disabled={!!p.busy} onClick={() => p.onTool("ping", n.id)}><Activity size={14} />{p.busy === `ping-${n.id}` ? "Pinging…" : "Ping"}</button>
               <button className="btn" disabled={!!p.busy || !p.env.meta.authorized} onClick={() => p.onTool("scan", n.id, ports)}><Radar size={14} />{p.busy === `scan-${n.id}` ? "Scanning…" : "Scan"}</button>
@@ -118,9 +120,10 @@ export function Inspector(p: Props) {
   const meta = p.env.meta;
   return (
     <div className="space-y-3 p-4">
-      <h2 className="text-sm font-semibold">Environment</h2>
-      <Field label="Name" value={p.env.name} onChange={(v) => p.onEnv({ name: v })} />
-      <Field label="Description" value={p.env.description} onChange={(v) => p.onEnv({ description: v })} area />
+      <h2 className="text-sm font-semibold">{p.env.name}</h2>
+      <p className="whitespace-pre-line text-sm text-muted">{p.env.description || "No description yet. Describe what this environment is and what's in scope."}</p>
+      {p.onEditDetails && <button className="btn text-xs" onClick={p.onEditDetails}>Edit name, description, tags…</button>}
+      <div className="label pt-2">Testing permission</div>
       <div className="space-y-2 rounded-md border border-line p-3 text-sm">
         <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={Boolean(meta.authorized)} onChange={(e) => p.onEnv({ meta: { ...meta, authorized: e.target.checked } })} />I own the hosts in this environment or have written permission to test them.</label>
         <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" disabled={!meta.authorized} checked={Boolean(meta.autoScan && meta.authorized)} onChange={(e) => p.onEnv({ meta: { ...meta, autoScan: e.target.checked } })} />Auto-scan common ports when a URL is applied to a Web App.</label>
@@ -128,7 +131,7 @@ export function Inspector(p: Props) {
       <p className="font-mono text-xs text-muted">{p.env.nodes} nodes · {p.env.edges} links</p>
       <div className="text-xs leading-relaxed text-muted">
         <p className="font-medium text-ink">Tips</p>
-        <p>Drag components from the left palette. Connect nodes by dragging from any edge handle. Select and press Delete to remove. Ctrl+S saves.</p>
+        <p>Click a component on the canvas to edit it here. Connect components by dragging from any edge handle. Select and press Delete to remove. Ctrl+S saves the project.</p>
       </div>
     </div>
   );

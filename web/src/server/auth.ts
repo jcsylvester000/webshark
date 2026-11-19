@@ -34,15 +34,16 @@ export async function verifyPassword(pw: string, stored: string): Promise<boolea
 export const newToken = () => randomBytes(32).toString("hex");
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
-export type AuthUser = { id: string; username: string; role: string };
+export type AuthUser = { id: string; username: string; role: string; sessionHash: string };
 
 export async function currentUser(req: NextRequest): Promise<AuthUser | null> {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const rows = await sql<AuthUser[]>`
+  const h = hashToken(token);
+  const rows = await sql<Omit<AuthUser, "sessionHash">[]>`
     SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = ${hashToken(token)} AND s.expires_at > now()`;
-  return rows[0] ?? null;
+    WHERE s.token_hash = ${h} AND s.expires_at > now()`;
+  return rows[0] ? { ...rows[0], sessionHash: h } : null;
 }
 
 export async function requireUser(req: NextRequest): Promise<AuthUser> {

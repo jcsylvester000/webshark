@@ -14,7 +14,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   if (res.status === 401 && typeof window !== "undefined") {
     // Hard navigation on purpose: the session expired, so reset all client state.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+    window.location.href = `/login?expired=1&next=${encodeURIComponent(window.location.pathname)}`;
   }
   if (!res.ok) throw new ApiError(res.status, data.message ?? `Request failed (${res.status})`, data.error);
   return data as T;

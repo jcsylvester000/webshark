@@ -3,7 +3,9 @@
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { dialogs } from "@/components/Dialogs";
 import { ExportMenu } from "@/components/ExportMenu";
+import { Time } from "@/components/Time";
 import { PageHeader } from "@/components/PageHeader";
 import { errMsg } from "@/lib/api";
 import type { StepResult } from "@/lib/batch";
@@ -29,7 +31,7 @@ export default function RunsPage() {
 
   return (
     <div>
-      <PageHeader title="Test Runs" subtitle="Batch test runs you chose to save. Run new batches from a project's Batch Tests tab.">
+      <PageHeader title="Test runs" subtitle="Batch test runs you chose to save. Run new ones from a project's Batch tests tab. Click a row for details.">
         <ExportMenu disabled={!all.length} build={summaryReport} />
       </PageHeader>
       {error && <p className="mx-6 mt-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
@@ -39,7 +41,7 @@ export default function RunsPage() {
           <tbody>
             {all.map((r) => (
               <tr key={r.id} className="cursor-pointer border-t border-line/60 hover:bg-panel-2" onClick={() => fetchRun(r.id).then(setDetail).catch((e) => setError(errMsg(e)))}>
-                <td className="whitespace-nowrap px-3 py-2 text-muted">{new Date(r.created_at).toLocaleString()}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-muted"><Time value={r.created_at} /></td>
                 <td className="px-3 py-2"><Link href={`/dashboard/projects/${r.project_id}`} onClick={(e) => e.stopPropagation()} className="hover:text-fin">{r.project_name}</Link></td>
                 <td className="px-3 py-2">{r.scenario_name}</td>
                 <td className={`px-3 py-2 font-mono text-xs ${r.failed + r.errored ? "text-red-400" : "text-emerald-300"}`}>{r.passed}/{r.total} passed{r.failed ? ` · ${r.failed} failed` : ""}{r.errored ? ` · ${r.errored} errors` : ""}</td>
@@ -48,7 +50,7 @@ export default function RunsPage() {
                   <span className="inline-flex gap-1.5">
                     <button className="btn px-2 py-0.5 text-xs" onClick={async () => exportCsv(runReport(await fetchRun(r.id)))}>CSV</button>
                     <button className="btn px-2 py-0.5 text-xs" onClick={async () => exportPdf(runReport(await fetchRun(r.id)))}>PDF</button>
-                    <button className="px-1 text-muted hover:text-danger" aria-label="Delete run" onClick={async () => { if (confirm("Delete this saved run?")) { await command("batch.deleteRun", { id: r.id }); if (detail?.id === r.id) setDetail(null); load(); } }}><Trash2 size={14} /></button>
+                    <button className="px-1 text-muted hover:text-danger" aria-label="Delete run" onClick={async () => { if (await dialogs.confirm({ title: "Delete this saved run?", message: "Its results will be removed permanently.", danger: true })) { await command("batch.deleteRun", { id: r.id }); if (detail?.id === r.id) setDetail(null); load(); } }}><Trash2 size={14} /></button>
                   </span>
                 </td>
               </tr>

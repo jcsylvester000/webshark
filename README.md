@@ -10,9 +10,21 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.3)
-- **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing,
-  random session tokens (only a SHA-256 hash is stored), and an httpOnly cookie.
+## Features (v0.4)
+- **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
+  random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
+  change their password, see and sign out sessions, and delete the account.
+- **Display settings**: Dark/Light/System theme, text size, 12/24-hour clock, relative times, learning
+  tips, reduce motion and start page. They're saved to the account and applied before first paint.
+- **Beginner-friendly**: personal greeting, getting-started checklist, "Continue where you left off",
+  ⓘ learning tips, a Help & glossary page, example console commands and capture filters, and
+  plain-language errors.
+- **Organization**: workspaces (with colour and description) → projects with description, tags,
+  stage (production, staging, development, lab, learning) and pin. Search, filter and sort across all
+  projects. Projects can be duplicated, moved, archived and restored.
+- **Save history**: save with an optional note; the last 10 saves can be restored.
+- **Share links**: a read-only link to the last saved version, with an optional password (10 wrong
+  tries lock it for 15 minutes), expiry, view counts and revocation. API secrets are never shared.
 - **Workspaces → projects**: organize work into workspaces. Each project keeps its full working
   state: canvas, icons, links, API collections and variables, scanner settings and last results,
   console history, batch scenarios, test results and notes.
@@ -49,7 +61,7 @@ else, you're asked before anything is overwritten.
 cd web
 copy .env.example .env.local     # paste your Neon DATABASE_URL
 npm install
-npm run db:migrate               # creates tables (0001, 0002) + testuser / password123
+npm run db:migrate               # creates tables (0001–0003) + testuser / password123
 npm run dev                      # http://localhost:3000
 ```
 

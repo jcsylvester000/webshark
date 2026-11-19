@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { resultsReport } from "@/lib/reports";
 import { useProjects } from "@/lib/store";
+import { dialogs } from "./Dialogs";
 import { ExportMenu } from "./ExportMenu";
 
 export function ResultsPanel({ projectId }: { projectId: string }) {
@@ -21,7 +22,7 @@ export function ResultsPanel({ projectId }: { projectId: string }) {
           {["all", "ping", "dns", "portscan", "http", "audit"].map((t) => <option key={t}>{t}</option>)}
         </select>
         <ExportMenu disabled={!rows.length} build={() => resultsReport(rows, project.meta.name)} />
-        <button className="btn-danger" disabled={!project.state.results.length} onClick={() => confirm("Clear all results from this project? (Takes effect when you save.)") && update(projectId, (s) => ({ ...s, results: [] }))}><Trash2 size={14} />Clear</button>
+        <button className="btn-danger" disabled={!project.state.results.length} onClick={async () => { if (await dialogs.confirm({ title: "Clear all results?", message: "Results are removed from the project. This becomes permanent when you save; Revert undoes it before then.", confirmText: "Clear", danger: true })) update(projectId, (s) => ({ ...s, results: [] })); }}><Trash2 size={14} />Clear</button>
       </div>
       <table className="panel w-full text-sm">
         <thead className="bg-panel-2 text-left text-xs uppercase tracking-wider text-muted"><tr><th className="px-3 py-2">Time</th><th className="px-3 py-2">Tool</th><th className="px-3 py-2">Target</th><th className="px-3 py-2">Result</th><th className="px-3 py-2">Summary</th></tr></thead>

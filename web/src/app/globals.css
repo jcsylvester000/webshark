@@ -1,41 +1,85 @@
 @import "tailwindcss";
 
-/* Slyshark theme: deep-sea dark with a teal "fin" accent. */
+/* Slyshark theme tokens. Dark is the default; `html.light` switches every token. */
+:root {
+  --c-bg: #070b10; --c-panel: #0c131b; --c-panel-2: #111b26; --c-line: #1c2a38;
+  --c-ink: #dbe6f0; --c-muted: #8597a9; --c-fin: #2ee6c5; --c-fin-dim: #1a8f7c;
+  --c-danger: #f05252; --c-warn: #f5b84a;
+}
+html.light {
+  --c-bg: #f4f7fa; --c-panel: #ffffff; --c-panel-2: #edf2f7; --c-line: #d3dce6;
+  --c-ink: #142231; --c-muted: #4f6173; --c-fin: #06705f; --c-fin-dim: #055e50;
+  --c-danger: #c62828; --c-warn: #a16207;
+}
+html.text-sm-root { font-size: 14px; }
+html.text-lg-root { font-size: 18px; }
+
 @theme inline {
-  --color-bg: #070b10;
-  --color-panel: #0c131b;
-  --color-panel-2: #111b26;
-  --color-line: #1c2a38;
-  --color-ink: #dbe6f0;
-  --color-muted: #7d90a3;
-  --color-fin: #2ee6c5;
-  --color-fin-dim: #1a8f7c;
-  --color-danger: #f05252;
-  --color-warn: #f5b84a;
+  --color-bg: var(--c-bg);
+  --color-panel: var(--c-panel);
+  --color-panel-2: var(--c-panel-2);
+  --color-line: var(--c-line);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-fin: var(--c-fin);
+  --color-fin-dim: var(--c-fin-dim);
+  --color-danger: var(--c-danger);
+  --color-warn: var(--c-warn);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-html, body { background: var(--color-bg); color: var(--color-ink); }
+html, body { background: var(--c-bg); color: var(--c-ink); }
 body { font-family: var(--font-sans), system-ui, sans-serif; }
-::selection { background: #2ee6c533; }
-* { scrollbar-width: thin; scrollbar-color: #1c2a38 transparent; }
+::selection { background: color-mix(in srgb, var(--c-fin) 25%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--c-line) transparent; }
+:focus-visible { outline: 2px solid var(--c-fin); outline-offset: 2px; border-radius: 4px; }
 
 @layer components {
-  .btn { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm text-ink transition hover:border-fin/60 hover:text-white disabled:opacity-50 disabled:pointer-events-none; }
+  .btn { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm text-ink transition hover:border-fin/60 disabled:opacity-50 disabled:pointer-events-none; }
   .btn-primary { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md bg-fin px-3 py-1.5 text-sm font-semibold text-bg transition hover:brightness-110 disabled:opacity-50 disabled:pointer-events-none; }
-  .btn-danger { @apply inline-flex items-center gap-1.5 rounded-md border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10; }
-  .input { @apply w-full rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-fin/70; }
+  .btn-danger { @apply inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50 disabled:pointer-events-none; }
+  .input { @apply w-full rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-fin/70; }
   .label { @apply mb-1 block text-xs font-medium uppercase tracking-wider text-muted; }
   .panel { @apply rounded-lg border border-line bg-panel; }
   .tab { @apply border-b-2 border-transparent px-3 py-2 text-sm text-muted hover:text-ink; }
   .tab-active { @apply border-fin text-ink; }
+  .link { @apply text-fin underline underline-offset-2 hover:decoration-2; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full border border-line bg-panel-2 px-2 py-0.5 text-xs text-muted; }
 }
+html.light .btn-primary { color: #ffffff; }
 
-/* React Flow v13 uses light-dark(); force the dark scheme */
+/* Status colours: the dark palette uses light tints; the light theme swaps to darker shades for contrast. */
+html.light .text-emerald-300, html.light .text-emerald-200 { color: #047857; }
+html.light .text-red-400, html.light .text-red-300, html.light .text-red-200 { color: #b91c1c; }
+html.light .text-amber-300, html.light .text-amber-200, html.light .text-amber-200\/90 { color: #92400e; }
+html.light .text-sky-300, html.light .text-sky-200 { color: #0369a1; }
+html.light .text-violet-300, html.light .text-violet-200 { color: #6d28d9; }
+html.light .text-pink-300 { color: #be185d; }
+html.light .text-orange-300 { color: #c2410c; }
+html.light .text-zinc-300, html.light .text-zinc-200 { color: #3f3f46; }
+
+/* Packet list colouring rules (Wireshark-style), tuned for each theme. */
+.pk-rst { background: #3b0d0d99; color: #fecaca; } .pk-syn { background: #27272ab3; color: #e4e4e7; }
+.pk-http { background: #022c2299; color: #a7f3d0; } .pk-tls { background: #2e106580; color: #ddd6fe; }
+.pk-dns { background: #082f4999; color: #bae6fd; } .pk-arp { background: #42200680; color: #fef08a; }
+.pk-icmp { background: #50072480; color: #fbcfe8; } .pk-udp { background: #08334466; color: #cffafe; }
+.pk-tcp { background: #1e1b4b66; color: #e0e7ff; } .pk-other { color: var(--c-ink); }
+html.light .pk-rst { background: #fee2e2; color: #7f1d1d; } html.light .pk-syn { background: #e4e4e7; color: #27272a; }
+html.light .pk-http { background: #d1fae5; color: #064e3b; } html.light .pk-tls { background: #ede9fe; color: #4c1d95; }
+html.light .pk-dns { background: #e0f2fe; color: #0c4a6e; } html.light .pk-arp { background: #fef9c3; color: #713f12; }
+html.light .pk-icmp { background: #fce7f3; color: #831843; } html.light .pk-udp { background: #cffafe; color: #164e63; }
+html.light .pk-tcp { background: #e0e7ff; color: #312e81; }
+
+/* React Flow follows the active theme. */
 .react-flow { color-scheme: dark; --xy-background-color: transparent; }
-.react-flow__controls button { background: var(--color-panel-2); border-color: var(--color-line); fill: var(--color-ink); }
-.react-flow__controls button:hover { background: #18263a; }
-.react-flow__minimap { background: var(--color-panel); }
+html.light .react-flow { color-scheme: light; }
+.react-flow__controls button { background: var(--c-panel-2); border-color: var(--c-line); fill: var(--c-ink); }
+.react-flow__minimap { background: var(--c-panel); }
 .react-flow__attribution { display: none; }
-.react-flow__handle { width: 9px; height: 9px; background: var(--color-fin); border: 2px solid var(--color-bg); }
+.react-flow__handle { width: 9px; height: 9px; background: var(--c-fin); border: 2px solid var(--c-bg); }
+
+/* Reduce motion (preference or OS setting). */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; }
+html.reduce-motion .react-flow__edge.animated path { stroke-dasharray: 6 4; animation: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }

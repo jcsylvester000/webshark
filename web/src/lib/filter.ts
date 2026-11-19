@@ -131,17 +131,17 @@ export function compileFilter(src: string): Pred {
   return p;
 }
 
-/** Wireshark-like default coloring rules. */
+/** Wireshark-like default colouring rules (classes defined per theme in globals.css). */
 export function rowColor(f: Frame): string {
-  if (f.flags?.includes("RST")) return "bg-red-950/60 text-red-200";
-  if (f.flags?.includes("SYN") || f.flags?.includes("FIN")) return "bg-zinc-800/70 text-zinc-200";
+  if (f.flags?.includes("RST")) return "pk-rst";
+  if (f.flags?.includes("SYN") || f.flags?.includes("FIN")) return "pk-syn";
   const s = f.stack;
-  if (s.includes("http")) return "bg-emerald-950/60 text-emerald-200";
-  if (s.includes("tls")) return "bg-violet-950/50 text-violet-200";
-  if (s.includes("dns")) return "bg-sky-950/60 text-sky-200";
-  if (s.includes("arp")) return "bg-yellow-950/50 text-yellow-200";
-  if (s.includes("icmp")) return "bg-pink-950/50 text-pink-200";
-  if (s.includes("udp")) return "bg-cyan-950/40 text-cyan-100";
-  if (s.includes("tcp")) return "bg-indigo-950/40 text-indigo-100";
-  return "text-zinc-300";
+  if (s.includes("http")) return "pk-http";
+  if (s.includes("tls")) return "pk-tls";
+  if (s.includes("dns")) return "pk-dns";
+  if (s.includes("arp")) return "pk-arp";
+  if (s.includes("icmp")) return "pk-icmp";
+  if (s.includes("udp")) return "pk-udp";
+  if (s.includes("tcp")) return "pk-tcp";
+  return "pk-other";
 }

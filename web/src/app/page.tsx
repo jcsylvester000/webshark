@@ -1,6 +1,7 @@
 /** Public landing page (static, no data fetching). */
 import Link from "next/link";
 import { Wordmark } from "@/components/Logo";
+import { DeletedNotice } from "@/components/DeletedNotice";
 
 const FEATURES = [
   ["Environment designer", "Drag PCs, servers, load balancers, CDNs, databases and platform zones (Vercel, Netlify, AWS, Forge) onto a canvas, or start from a template."],
@@ -21,6 +22,7 @@ export default function Home() {
           <Link href="/register" className="btn-primary">Create account</Link>
         </nav>
       </header>
+      <DeletedNotice />
       <section className="py-20">
         <p className="font-mono text-sm text-fin">network · server · application documentation</p>
         <h1 className="mt-4 max-w-3xl text-5xl font-semibold leading-tight tracking-tight">

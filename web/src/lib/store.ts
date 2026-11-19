@@ -12,10 +12,14 @@ import { emptyState, MAX_RESULTS, normalizeState, type ProjectMeta, type Project
 
 export const SCRATCH = "scratch";
 const TABS_KEY = "slyshark.openProjects";
+export const LAST_KEY = "slyshark.lastProject";
+export function lastProject(): { id: string; name: string; at: string } | null {
+  try { return JSON.parse(localStorage.getItem(LAST_KEY) ?? "null"); } catch { return null; }
+}
 
 type Loaded = { meta: ProjectMeta; state: ProjectState; version: number; savedAt: string | null; dirty: boolean; saving: boolean };
 type Tab = { id: string; name: string };
-type ProjectRow = { id: string; workspace_id: string; workspace_name: string; name: string; description: string; template: string | null; status: string; state: unknown; state_version: number; saved_at: string };
+type ProjectRow = { id: string; workspace_id: string; workspace_name: string; name: string; description: string; template: string | null; status: string; state: unknown; state_version: number; saved_at: string; tags: string[]; stage: string; pinned: boolean };
 
 type Store = {
   loaded: Record<string, Loaded>;
@@ -28,11 +32,13 @@ type Store = {
   update: (id: string, recipe: (s: ProjectState) => ProjectState) => void;
   setMeta: (id: string, patch: Partial<Pick<ProjectMeta, "name" | "description">>) => void;
   addResult: (id: string, r: Omit<ResultEntry, "id" | "at">) => void;
-  save: (id: string, opts?: { force?: boolean }) => Promise<void>;
+  save: (id: string, opts?: { force?: boolean; note?: string }) => Promise<void>;
+  /** Applies details already persisted by `project.updateDetails` (does not mark the project unsaved). */
+  applyDetails: (id: string, d: Partial<ProjectMeta>) => void;
 };
 
 const persistTabs = (tabs: Tab[]) => { try { localStorage.setItem(TABS_KEY, JSON.stringify(tabs)); } catch { /* storage unavailable */ } };
-const scratch = (): Loaded => ({ meta: { id: SCRATCH, workspaceId: null, workspaceName: "", name: "Scratch", description: "", template: null, status: "active" }, state: emptyState(), version: 0, savedAt: null, dirty: false, saving: false });
+const scratch = (): Loaded => ({ meta: { id: SCRATCH, workspaceId: null, workspaceName: "", name: "Scratch", description: "", template: null, status: "active", tags: [], stage: "none", pinned: false }, state: emptyState(), version: 0, savedAt: null, dirty: false, saving: false });
 
 export const useProjects = create<Store>((set, get) => ({
   loaded: { [SCRATCH]: scratch() },
@@ -48,12 +54,13 @@ export const useProjects = create<Store>((set, get) => ({
     const row = await api<ProjectRow>(`/queries/projects/${id}`).catch((e: Error) => { set((s) => ({ errors: { ...s.errors, [id]: e.message } })); return null; });
     if (!row) return;
     const entry: Loaded = {
-      meta: { id: row.id, workspaceId: row.workspace_id, workspaceName: row.workspace_name, name: row.name, description: row.description, template: row.template, status: row.status },
+      meta: { id: row.id, workspaceId: row.workspace_id, workspaceName: row.workspace_name, name: row.name, description: row.description, template: row.template, status: row.status, tags: row.tags ?? [], stage: row.stage ?? "none", pinned: !!row.pinned },
       state: normalizeState(row.state), version: row.state_version, savedAt: row.saved_at, dirty: false, saving: false,
     };
     set((s) => {
       const tabs = s.tabs.some((t) => t.id === id) ? s.tabs.map((t) => (t.id === id ? { id, name: row.name } : t)) : [...s.tabs, { id, name: row.name }];
       persistTabs(tabs);
+      try { localStorage.setItem(LAST_KEY, JSON.stringify({ id, name: row.name, at: new Date().toISOString() })); } catch { /* ignore */ }
       return { loaded: { ...s.loaded, [id]: entry }, tabs, errors: { ...s.errors, [id]: undefined } };
     });
   },
@@ -87,6 +94,12 @@ export const useProjects = create<Store>((set, get) => ({
     return { loaded: { ...s.loaded, [id]: { ...cur, meta: { ...cur.meta, ...patch }, dirty: id !== SCRATCH } }, tabs };
   }),
 
+  applyDetails: (id, d) => set((s) => {
+    const cur = s.loaded[id];
+    if (!cur) return s;
+    return { loaded: { ...s.loaded, [id]: { ...cur, meta: { ...cur.meta, ...d } } }, tabs: d.name ? s.tabs.map((t) => (t.id === id ? { ...t, name: d.name! } : t)) : s.tabs };
+  }),
+
   addResult: (id, r) => get().update(id, (st) => ({ ...st, results: [{ ...r, id: Math.random().toString(36).slice(2, 10), at: new Date().toISOString() }, ...st.results].slice(0, MAX_RESULTS) })),
 
   save: async (id, opts = {}) => {
@@ -95,7 +108,7 @@ export const useProjects = create<Store>((set, get) => ({
     set((s) => ({ loaded: { ...s.loaded, [id]: { ...s.loaded[id], saving: true } } }));
     try {
       const r = await api<{ version: number; savedAt: string }>("/commands/project.save", {
-        method: "POST", json: { id, state: cur.state, expectedVersion: cur.version, force: opts.force ?? false, name: cur.meta.name, description: cur.meta.description },
+        method: "POST", json: { id, state: cur.state, expectedVersion: cur.version, force: opts.force ?? false, name: cur.meta.name, description: cur.meta.description, note: opts.note ?? "" },
       });
       set((s) => {
         const latest = s.loaded[id];

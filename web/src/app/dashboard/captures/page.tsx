@@ -9,6 +9,9 @@ import { ChevronDown, ChevronRight, Filter, Upload, Waves, X } from "lucide-reac
 import { useEffect, useMemo, useRef, useState } from "react";
 import { errMsg } from "@/lib/api";
 import { ExportMenu } from "@/components/ExportMenu";
+import { HelpTip } from "@/components/HelpTip";
+import { FILTER_EXAMPLES } from "@/lib/glossary";
+import { usePrefs } from "@/lib/prefs";
 import { compileFilter, rowColor } from "@/lib/filter";
 import { framesReport } from "@/lib/reports";
 import { analyzeCapture, followStream as followLocal, frameDetail, type LocalCapture } from "@/lib/pcap/analyze";
@@ -49,8 +52,8 @@ function Hex({ bytes, hl }: { bytes: Uint8Array; hl: TreeNode | null }) {
     rows.push(
       <div key={off} className="flex gap-4 whitespace-pre">
         <span className="text-muted">{off.toString(16).padStart(4, "0")}</span>
-        <span>{chunk.map((b, i) => <span key={i} className={inHl(i) ? "bg-fin/35 text-white" : ""}>{b.toString(16).padStart(2, "0")}{i === 7 ? "  " : " "}</span>)}{"   ".repeat(16 - chunk.length)}</span>
-        <span>{chunk.map((b, i) => <span key={i} className={inHl(i) ? "bg-fin/35 text-white" : "text-muted"}>{b >= 32 && b < 127 ? String.fromCharCode(b) : "."}</span>)}</span>
+        <span>{chunk.map((b, i) => <span key={i} className={inHl(i) ? "bg-fin/35 text-ink" : ""}>{b.toString(16).padStart(2, "0")}{i === 7 ? "  " : " "}</span>)}{"   ".repeat(16 - chunk.length)}</span>
+        <span>{chunk.map((b, i) => <span key={i} className={inHl(i) ? "bg-fin/35 text-ink" : "text-muted"}>{b >= 32 && b < 127 ? String.fromCharCode(b) : "."}</span>)}</span>
       </div>,
     );
   }
@@ -70,6 +73,7 @@ export default function CapturesPage() {
   const [view, setView] = useState<"packets" | "protocols" | "conversations" | "endpoints">("packets");
   const [follow, setFollow] = useState<Follow | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const tips = usePrefs((s) => s.prefs.learningTips);
   const [viewH, setViewH] = useState(600);
   useEffect(() => {
     const el = listRef.current;
@@ -126,6 +130,7 @@ export default function CapturesPage() {
 
   return (
     <div className="flex h-full flex-col" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) upload(f); }}>
+      <h1 className="sr-only">Packet captures</h1>
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <button className="btn-primary" onClick={() => fileRef.current?.click()} disabled={loading}><Upload size={14} />{loading ? "Loading…" : "Open capture"}</button>
         <input ref={fileRef} type="file" hidden accept=".pcap,.pcapng,.cap,.dmp" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
@@ -133,19 +138,26 @@ export default function CapturesPage() {
           <Filter size={14} className="text-muted" />
           <input aria-label="Display filter" className={`input font-mono text-xs ${filterError ? "border-danger" : applied ? "border-emerald-500/60" : ""}`} value={filterText} onChange={(e) => setFilterText(e.target.value)}
             placeholder="Display filter: tcp.port == 443 && !tls · dns || icmp · ip.addr == 10.0.0.5 · http.request · info contains &quot;SNI&quot;" />
+          <HelpTip label="How display filters work">Filters show only matching packets. Type a protocol (dns, http, tls), or a field test like <code>tcp.port == 443</code> or <code>ip.addr == 10.0.0.5</code>. Combine with && (and), || (or), ! (not). Press Enter to apply.</HelpTip>
           <button className="btn">Apply</button>
-          {applied && <button type="button" className="btn" onClick={() => { setFilterText(""); setApplied(""); }}><X size={13} /></button>}
+          {applied && <button type="button" className="btn" aria-label="Clear filter" title="Clear filter" onClick={() => { setFilterText(""); setApplied(""); }}><X size={13} /></button>}
         </form>
         {cap && <ExportMenu small disabled={!frames.length} build={() => framesReport(frames, cap.name, applied)} />}
         {cap && <span className="font-mono text-xs text-muted">{cap.name} · {cap.format} · {cap.linktype} · {frames.length}/{cap.count} pkts · {cap.duration_s.toFixed(3)} s{cap.truncated ? " · truncated" : ""}</span>}
       </div>
+      {cap && tips && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5 text-xs text-muted">
+          <span>Example filters:</span>
+          {FILTER_EXAMPLES.map((x) => <button key={x.f} title={x.why} onClick={() => { setFilterText(x.f); setApplied(x.f); }} className="chip font-mono text-fin hover:border-fin/50">{x.f}</button>)}
+        </div>
+      )}
       {(error || filterError) && <div className="bg-danger/15 px-4 py-1.5 text-sm text-danger">{error ?? `Filter: ${filterError}`}</div>}
       {!cap ? (
         <div className="grid flex-1 place-items-center p-8 text-center">
           <div className="max-w-md">
             <Waves size={36} className="mx-auto text-fin" />
-            <h1 className="mt-3 text-lg font-semibold">Open a packet capture</h1>
-            <p className="mt-1 text-sm text-muted">Drop a .pcap or .pcapng file here (max 200 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. The file is decoded in your browser and is never uploaded.</p>
+            <h2 className="mt-3 text-lg font-semibold">Open a packet capture</h2>
+            <p className="mt-1 text-sm text-muted">No capture yet? Try the sample <code>slyshark-demo.pcap</code> from the project&apos;s samples folder. Drop a .pcap or .pcapng file here (max 200 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. The file is decoded in your browser and is never uploaded.</p>
           </div>
         </div>
       ) : (
@@ -176,7 +188,7 @@ export default function CapturesPage() {
                       {detail.summary.stream != null && <button className="btn mb-2 text-xs" onClick={() => followStream(detail.summary.stream!)}>Follow TCP stream {detail.summary.stream}</button>}
                       <Tree key={detail.summary.no} nodes={detail.tree} onHover={setHl} active={hl} />
                     </>
-                  ) : <p className="p-2 font-sans text-sm text-muted">Select a packet. Use ↑/↓ to move, double-click a TCP packet to follow its stream.</p>}
+                  ) : <p className="p-2 font-sans text-sm text-muted">Select a packet to see its layers here (Ethernet → IP → TCP/UDP → application) and its raw bytes on the right. Hover a layer to highlight its bytes. Use ↑/↓ to move; double-click a TCP packet to follow its conversation.</p>}
                 </div>
                 <div className="w-[560px] shrink-0 overflow-auto p-2">{detail && <Hex bytes={detail.bytes} hl={hl} />}</div>
               </div>

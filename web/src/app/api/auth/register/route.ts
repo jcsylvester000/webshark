@@ -19,6 +19,8 @@ export const POST = handle(async (req: NextRequest) => {
   const display = b.display_name?.trim() || null;
   const [u] = await sql<{ id: string }[]>`INSERT INTO users (username, email, display_name, password_hash)
     VALUES (${username}, ${email}, ${display}, ${await hashPassword(password)}) RETURNING id`;
+  // Starter workspace so a new user's first "New project" has a home.
+  await sql`INSERT INTO workspaces (owner_id, name, description) VALUES (${u.id}, 'My Workspace', 'Your first workspace. Rename it or add more anytime.')`;
   const token = await createSession(u.id, req.headers.get("user-agent"));
   const res = NextResponse.json({ user: await userJson(u.id) });
   res.cookies.set(SESSION_COOKIE, token, cookieOptions());

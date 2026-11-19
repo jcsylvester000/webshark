@@ -12,7 +12,9 @@ import { command, query, type RunSummary } from "@/lib/cqrs";
 import { scenarioFromCanvas } from "@/lib/project";
 import { runReport } from "@/lib/reports";
 import { useProjects } from "@/lib/store";
+import { dialogs } from "./Dialogs";
 import { ExportMenu } from "./ExportMenu";
+import { HelpTip } from "./HelpTip";
 
 const STATUS_CLS: Record<string, string> = { pass: "bg-emerald-500/15 text-emerald-300", fail: "bg-red-500/20 text-red-300", error: "bg-orange-500/20 text-orange-300", skipped: "bg-zinc-500/20 text-zinc-300", running: "bg-sky-500/15 text-sky-300" };
 
@@ -54,7 +56,7 @@ function ResultsTable({ results }: { results: (StepResult | { stepId: string; na
   const [open, setOpen] = useState<Record<string, boolean>>({});
   return (
     <table className="panel w-full text-sm">
-      <thead className="bg-panel-2 text-left text-xs uppercase tracking-wider text-muted"><tr><th className="w-6" /><th className="px-3 py-2">Status</th><th className="px-3 py-2">Step</th><th className="px-3 py-2">Target</th><th className="px-3 py-2">ms</th><th className="px-3 py-2">Summary</th></tr></thead>
+      <thead className="bg-panel-2 text-left text-xs uppercase tracking-wider text-muted"><tr><th className="w-6"><span className="sr-only">Details</span></th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Step</th><th className="px-3 py-2">Target</th><th className="px-3 py-2">ms</th><th className="px-3 py-2">Summary</th></tr></thead>
       <tbody>
         {results.map((r) => {
           const done = r.status !== "running" ? (r as StepResult) : null;
@@ -105,10 +107,10 @@ export function BatchTests({ projectId }: { projectId: string }) {
   const setSteps = (fn: (steps: Step[]) => Step[]) => sc && setScenario({ steps: fn(sc.steps) });
   const addScenario = (s: Scenario) => setBatch((b) => ({ scenarios: [...b.scenarios, s], activeScenarioId: s.id }));
 
-  function fromTemplate(tid: string) {
+  async function fromTemplate(tid: string) {
     const t = SCENARIO_TEMPLATES.find((x) => x.id === tid);
     if (!t) return;
-    const target = prompt(`Target for "${t.name}" (domain or base URL)`, "example.com");
+    const target = await dialogs.prompt({ title: t.name, message: `${t.description}\n\nWhich site should it test? Use a domain (example.com) or a base URL for APIs.`, label: "Target", defaultValue: "example.com", confirmText: "Create scenario" });
     if (!target?.trim()) return;
     addScenario({ id: uid(), name: `${t.name} — ${target.trim()}`, description: t.description, steps: t.build(target.trim().replace(/^https?:\/\//, "").replace(/\/$/, "")), stopOnFail: false, concurrency: 2 });
   }
@@ -172,7 +174,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
                 <div className="truncate">{r.scenario_name}</div>
                 <div className="text-muted">{new Date(r.created_at).toLocaleString()} · <span className={r.failed + r.errored ? "text-red-400" : "text-emerald-300"}>{r.passed}/{r.total}</span></div>
               </button>
-              <button className="opacity-0 group-hover:opacity-100 hover:text-danger" aria-label="Delete run" onClick={async () => { if (confirm("Delete this saved run?")) { await command("batch.deleteRun", { id: r.id }).catch((e) => setError(errMsg(e))); loadRuns(); } }}><Trash2 size={12} /></button>
+              <button className="opacity-0 group-hover:opacity-100 hover:text-danger" aria-label="Delete run" onClick={async () => { if (await dialogs.confirm({ title: "Delete this saved run?", message: "Its results will be removed permanently.", danger: true })) { await command("batch.deleteRun", { id: r.id }).catch((e) => setError(errMsg(e))); loadRuns(); } }}><Trash2 size={12} /></button>
             </div>
           ))}
           {!runs.length && <p className="text-xs text-muted">Runs you save appear here.</p>}
@@ -188,7 +190,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
               <label className="block w-28 text-xs text-muted">Parallel steps<select className="input mt-0.5" value={sc.concurrency} onChange={(e) => setScenario({ concurrency: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n}>{n}</option>)}</select></label>
               <Flag label="Stop on first failure" value={sc.stopOnFail} onChange={(v) => setScenario({ stopOnFail: v })} />
               <button className="btn" onClick={() => addScenario({ ...structuredClone(sc), id: uid(), name: `${sc.name} (copy)` })}><Copy size={14} />Duplicate</button>
-              <button className="btn-danger" onClick={() => confirm(`Delete scenario "${sc.name}"?`) && setBatch((b) => ({ scenarios: b.scenarios.filter((x) => x.id !== sc.id), activeScenarioId: null }))}><Trash2 size={14} /></button>
+              <button className="btn-danger" aria-label="Delete scenario" title="Delete scenario" onClick={async () => { if (await dialogs.confirm({ title: `Delete scenario “${sc.name}”?`, message: "Saved runs are kept. This becomes permanent when you save the project.", danger: true })) setBatch((b) => ({ scenarios: b.scenarios.filter((x) => x.id !== sc.id), activeScenarioId: null })); }}><Trash2 size={14} /></button>
             </div>
 
             <div className="panel divide-y divide-line/60">
@@ -197,7 +199,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
                   <div className="flex items-center gap-2">
                     <input type="checkbox" checked={st.enabled} onChange={(e) => setSteps((s) => s.map((x) => (x.id === st.id ? { ...x, enabled: e.target.checked } : x)))} aria-label="Enabled" />
                     <button onClick={() => setOpenStep(openStep === st.id ? null : st.id)} className="text-muted" aria-label="Edit step">{openStep === st.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
-                    <select aria-label="Step type" className="input w-36 text-xs" value={st.type} onChange={(e) => setSteps((s) => s.map((x) => (x.id === st.id ? { ...x, type: e.target.value as StepType } : x)))}>
+                    <select aria-label="Step type" title="What this step tests" className="input w-36 text-xs" value={st.type} onChange={(e) => setSteps((s) => s.map((x) => (x.id === st.id ? { ...x, type: e.target.value as StepType } : x)))}>
                       {(Object.keys(STEP_LABEL) as StepType[]).map((t) => <option key={t} value={t}>{STEP_LABEL[t]}</option>)}
                     </select>
                     <input aria-label="Step name" className="input text-xs" value={st.name} placeholder="Step name" onChange={(e) => setSteps((s) => s.map((x) => (x.id === st.id ? { ...x, name: e.target.value } : x)))} />
@@ -210,7 +212,7 @@ export function BatchTests({ projectId }: { projectId: string }) {
                 </div>
               ))}
               {!steps.length && <p className="p-4 text-sm text-muted">Add steps to build a test scenario.</p>}
-              <div className="p-2.5"><button className="btn text-xs" onClick={() => { const s: Step = { id: uid(), name: "", type: "http", target: "", enabled: true, expectStatus: "2xx" }; setSteps((x) => [...x, s]); setOpenStep(s.id); }}><Plus size={13} />Add step</button></div>
+              <div className="flex items-center gap-2 p-2.5"><HelpTip label="About steps and expectations">Click ▸ on a step to set what you expect, e.g. status <code>2xx</code> (any success), <code>301,308</code> (a redirect), ports that must be open or closed, or a minimum audit score. The step passes only if every expectation holds.</HelpTip><button className="btn text-xs" onClick={() => { const s: Step = { id: uid(), name: "", type: "http", target: "", enabled: true, expectStatus: "2xx" }; setSteps((x) => [...x, s]); setOpenStep(s.id); }}><Plus size={13} />Add step</button></div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -220,13 +222,19 @@ export function BatchTests({ projectId }: { projectId: string }) {
                 : <button className="btn-primary" disabled={!steps.some((s) => s.enabled && s.target.trim())} onClick={run}><Play size={14} />Run scenario</button>}
             </div>
           </>
-        ) : <p className="text-sm text-muted">Create a scenario, pick a template, or generate one from your canvas.</p>}
+        ) : (
+          <div className="panel max-w-2xl p-5">
+            <h2 className="font-medium">What are batch tests?<HelpTip>A scenario is a checklist the computer runs for you: each step tests something (DNS, ping, ports, HTTP, audit) and passes or fails against what you expect.</HelpTip></h2>
+            <p className="mt-1 text-sm text-muted">Group several checks into a scenario and run them all at once, e.g. &ldquo;Is the site up, on HTTPS, and are database ports closed?&rdquo;. Save runs to track results over time and export them as CSV or PDF.</p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted"><li>Pick <b className="text-ink">From template…</b> on the left (start with &ldquo;Website health & security&rdquo;), or <b className="text-ink">Generate from canvas</b>.</li><li>Tick the permission box and click <b className="text-ink">Run scenario</b>.</li><li>Click <b className="text-ink">Save run</b> to keep the results, then <b className="text-ink">Save project</b> to keep the scenario.</li></ol>
+          </div>
+        )}
 
         {runningRows && <ResultsTable results={runningRows} />}
         {shown && !runningRows && (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-medium">{viewRun?.savedId ? "Saved run" : "Last run"}: {shown.scenarioName}</h3>
+              <h2 className="font-medium">{viewRun?.savedId ? "Saved run" : "Last run"}: {shown.scenarioName}</h2>
               <span className="font-mono text-xs text-muted">{new Date(shown.startedAt).toLocaleString()} · {counts(shown).pass}/{counts(shown).total} passed</span>
               <div className="ml-auto flex gap-1.5">
                 {!viewRun?.savedId && <button className="btn" onClick={() => saveRun(shown)} disabled={saving}><Save size={14} />{saving ? "Saving…" : "Save run"}</button>}

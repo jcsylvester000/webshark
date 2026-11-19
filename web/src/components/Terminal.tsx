@@ -2,13 +2,17 @@
 /** Interactive console bound to the Slyshark command engine (`lib/terminal.ts`). */
 import { useEffect, useRef, useState } from "react";
 import { useProjects } from "@/lib/store";
+import { CONSOLE_EXAMPLES } from "@/lib/glossary";
+import { usePrefs } from "@/lib/prefs";
 import { runCommand, type Line, type TermContext } from "@/lib/terminal";
 
-const TONE: Record<string, string> = { ok: "text-emerald-300", err: "text-red-400", warn: "text-amber-300", dim: "text-muted", accent: "text-fin", cmd: "text-white" };
+// The console is always dark (terminal convention), so it uses fixed colours rather than theme tokens.
+const TONE: Record<string, string> = { ok: "text-[#6ee7b7]", err: "text-[#f87171]", warn: "text-[#fcd34d]", dim: "text-[#8597a9]", accent: "text-[#2ee6c5]", cmd: "text-[#ffffff]" };
 
 /** `projectId` binds command history and tool results to that project's working state. */
 export function Terminal({ context = {}, className = "", prompt = "slyshark", initial, projectId }: { context?: TermContext; className?: string; prompt?: string; initial?: string; projectId?: string }) {
   const update = useProjects((s) => s.update);
+  const tips = usePrefs((s) => s.prefs.learningTips);
   const addResult = useProjects((s) => s.addResult);
   const [lines, setLines] = useState<Line[]>([{ text: 'Slyshark console. Type "help" for commands.', tone: "dim" }]);
   const [input, setInput] = useState(initial ?? "");
@@ -42,14 +46,20 @@ export function Terminal({ context = {}, className = "", prompt = "slyshark", in
   }
 
   return (
-    <div className={`flex flex-col bg-[#05080c] font-mono text-[13px] leading-relaxed ${className}`} onClick={() => inputRef.current?.focus()}>
+    <div className={`flex flex-col overflow-hidden bg-[#05080c] font-mono text-[13px] leading-relaxed text-[#dbe6f0] ${className}`} onClick={() => inputRef.current?.focus()}>
+      {tips && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-[#1c2a38] px-3 py-1.5 font-sans text-xs text-[#8597a9]">
+          <span>Try:</span>
+          {CONSOLE_EXAMPLES.map((x) => <button key={x.c} type="button" title={x.why} disabled={busy} onClick={(e) => { e.stopPropagation(); setInput(x.c); inputRef.current?.focus(); }} className="rounded border border-[#1c2a38] px-1.5 py-0.5 font-mono text-[#2ee6c5] hover:border-[#2ee6c5]/60">{x.c}</button>)}
+        </div>
+      )}
       <div className="flex-1 overflow-auto px-4 py-3">
-        {lines.map((l, i) => <div key={i} className={`whitespace-pre-wrap break-all ${TONE[l.tone ?? ""] ?? "text-ink"}`}>{l.text || " "}</div>)}
+        {lines.map((l, i) => <div key={i} className={`whitespace-pre-wrap break-all ${TONE[l.tone ?? ""] ?? "text-[#dbe6f0]"}`}>{l.text || " "}</div>)}
         <div className="flex items-center gap-2" ref={bottom}>
-          <span className="text-fin">{prompt}$</span>
+          <span className="text-[#2ee6c5]">{prompt}$</span>
           <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey} disabled={busy}
-            className="flex-1 bg-transparent text-white outline-none" spellCheck={false} autoComplete="off" aria-label="Console input" autoFocus />
-          {busy && <span className="animate-pulse text-muted">running…</span>}
+            className="flex-1 bg-transparent text-[#ffffff] outline-none" spellCheck={false} autoComplete="off" aria-label="Console input" autoFocus />
+          {busy && <span className="animate-pulse text-[#8597a9]">running…</span>}
         </div>
       </div>
     </div>

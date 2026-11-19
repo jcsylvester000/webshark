@@ -17,7 +17,7 @@ export type ProjectState = {
   notes: string;
 };
 
-export type ProjectMeta = { id: string; workspaceId: string | null; workspaceName: string; name: string; description: string; template: string | null; status: string };
+export type ProjectMeta = { id: string; workspaceId: string | null; workspaceName: string; name: string; description: string; template: string | null; status: string; tags: string[]; stage: string; pinned: boolean };
 
 export const MAX_RESULTS = 300;
 

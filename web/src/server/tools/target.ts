@@ -62,8 +62,10 @@ export async function resolveTarget(host: string, allowPrivate: boolean): Promis
   }
   if (!addrs.length) throw badRequest(`No addresses found for ${host}`);
   for (const ip of addrs) {
-    if (alwaysBlocked(ip)) throw forbidden(`${ip} is a link-local/metadata/multicast address and is blocked`);
-    if (!allowPrivate && isPrivate(ip)) throw forbidden(`${ip} is a private address; enable ALLOW_PRIVATE_TARGETS to test internal hosts`);
+    if (alwaysBlocked(ip)) throw forbidden(`${ip} is a special-purpose address (link-local, cloud metadata or multicast) and is always blocked for safety.`);
+    if (!allowPrivate && isPrivate(ip)) {
+      throw forbidden(`${ip} is a private (home/office/lab) address. The hosted Slyshark can only test public internet addresses. To test your own network, run Slyshark on a computer inside that network (see Help → Testing your own network).`);
+    }
   }
   // Prefer IPv4: serverless hosts often lack IPv6 egress.
   return addrs.sort((a, b) => isIP(a) - isIP(b));

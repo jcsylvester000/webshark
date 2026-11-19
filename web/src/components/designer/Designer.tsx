@@ -9,7 +9,8 @@ import {
   useEdgesState, useNodesState, useReactFlow, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ChevronDown, FileDown, FileJson, FileUp, LayoutTemplate, SquareTerminal, X } from "lucide-react";
+import { ChevronDown, Download, FileUp, LayoutTemplate, MousePointerClick, SquareTerminal, X } from "lucide-react";
+import { dialogs } from "../Dialogs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errMsg } from "@/lib/api";
 import { canvasToMarkdown, download } from "@/lib/docs";
@@ -42,7 +43,7 @@ function fromFlow(nodes: DeviceNodeT[], edges: LinkEdgeT[], meta: Canvas["meta"]
   };
 }
 
-function DesignerInner({ projectId }: { projectId: string }) {
+function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEditDetails?: () => void }) {
   const flow = useReactFlow();
   const project = useProjects((s) => s.loaded[projectId]);
   const update = useProjects((s) => s.update);
@@ -56,7 +57,8 @@ function DesignerInner({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [consoleFor, setConsoleFor] = useState<string | null>(null);
-  const [menu, setMenu] = useState<"templates" | null>(null);
+  const [menu, setMenu] = useState<"templates" | "export" | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { const t = setTimeout(() => flow.fitView({ padding: 0.2 }), 50); return () => clearTimeout(t); }, [flow]);
@@ -73,16 +75,28 @@ function DesignerInner({ projectId }: { projectId: string }) {
 
   const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge({ ...c, id: `e-${uid()}`, type: "link", data: {}, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }, es)), [setEdges]);
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const kind = e.dataTransfer.getData("application/slyshark");
-    if (!kind) return;
+  const addNode = useCallback((kind: string, position: { x: number; y: number }) => {
     const k = kindOf(kind);
-    const position = flow.screenToFlowPosition({ x: e.clientX - 70, y: e.clientY - 20 });
     const nid = uid();
     setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id: nid, type: "device", position, selected: true, data: { kind, label: k.label, ports: k.ports } }]);
     setSelection({ node: nid });
-  }, [flow, setNodes]);
+  }, [setNodes]);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const kind = e.dataTransfer.getData("application/slyshark");
+    if (!kind) return;
+    addNode(kind, flow.screenToFlowPosition({ x: e.clientX - 70, y: e.clientY - 20 }));
+  }, [flow, addNode]);
+
+  /** Keyboard/click alternative to drag and drop: adds the component near the centre of the view. */
+  const addAtCentre = useCallback((kind: string) => {
+    const pane = document.querySelector(`[data-canvas="${projectId}"]`)?.getBoundingClientRect();
+    const jitter = (nodes.length % 5) * 24;
+    const pos = pane ? flow.screenToFlowPosition({ x: pane.left + pane.width / 2 - 70 + jitter, y: pane.top + pane.height / 2 - 20 + jitter }) : { x: 100 + jitter, y: 100 + jitter };
+    addNode(kind, pos);
+  }, [flow, addNode, nodes.length, projectId]);
 
   const patchNode = useCallback((nid: string, patch: Partial<DeviceData>) => setNodes((ns) => ns.map((n) => (n.id === nid ? { ...n, data: { ...n.data, ...patch } } : n))), [setNodes]);
   const patchEdge = useCallback((eid: string, patch: Partial<LinkData>) => setEdges((es) => es.map((e) => (e.id === eid ? { ...e, data: { ...e.data, ...patch }, animated: patch.attack ?? e.animated } : e))), [setEdges]);
@@ -151,9 +165,9 @@ function DesignerInner({ projectId }: { projectId: string }) {
     setSelection({});
   }, [selection, setNodes, setEdges]);
 
-  function applyTemplate(tid: string) {
+  async function applyTemplate(tid: string) {
     setMenu(null);
-    if (nodes.length && !confirm("Replace the current canvas with this template?")) return;
+    if (nodes.length && !(await dialogs.confirm({ title: "Replace the canvas with this template?", message: "Your current components and links will be replaced. You can undo by clicking Revert before saving.", confirmText: "Replace" }))) return;
     const t = TEMPLATES.find((x) => x.id === tid)!;
     const f = toFlow(t.canvas());
     setNodes(f.nodes);
@@ -189,7 +203,7 @@ function DesignerInner({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
-        <span className="text-xs text-muted">Drag components from the palette · connect handles · Delete removes</span>
+        <span className="hidden text-xs text-muted lg:inline">Drag components from the left · drag between edges to connect · select + Delete to remove · hover a component for what it does</span>
         <div className="ml-auto flex items-center gap-1.5">
           <div className="relative">
             <button className="btn" onClick={() => setMenu(menu ? null : "templates")}><LayoutTemplate size={14} />Templates<ChevronDown size={13} /></button>
@@ -199,31 +213,42 @@ function DesignerInner({ projectId }: { projectId: string }) {
               </div>
             )}
           </div>
-          <button className="btn" title="Export documentation (Markdown)" onClick={() => download(`${slug}.md`, canvasToMarkdown(project.meta.name, project.meta.description, canvasNow()))}><FileDown size={14} />Docs</button>
-          <button className="btn" title="Export canvas JSON" onClick={() => download(`${slug}.slyshark.json`, JSON.stringify(canvasNow(), null, 2), "application/json")}><FileJson size={14} />JSON</button>
-          <button className="btn" title="Import canvas JSON" onClick={() => fileRef.current?.click()}><FileUp size={14} /></button>
+          <div className="relative">
+            <button className="btn" aria-expanded={menu === "export"} onClick={() => setMenu(menu === "export" ? null : "export")}><Download size={14} />Export<ChevronDown size={13} /></button>
+            {menu === "export" && (
+              <div className="panel absolute right-0 z-50 mt-1 w-64 p-1 text-sm shadow-xl">
+                <button className="block w-full rounded px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); download(`${slug}.md`, canvasToMarkdown(project.meta.name, project.meta.description, canvasNow())); }}><div>Documentation (.md)</div><div className="text-xs text-muted">Inventory, connections, findings</div></button>
+                <button className="block w-full rounded px-3 py-2 text-left hover:bg-panel-2" onClick={() => { setMenu(null); download(`${slug}.slyshark.json`, JSON.stringify(canvasNow(), null, 2), "application/json"); }}><div>Diagram file (.json)</div><div className="text-xs text-muted">Re-import into any Slyshark project</div></button>
+              </div>
+            )}
+          </div>
+          <button className="btn" title="Import a diagram file (.json)" onClick={() => fileRef.current?.click()}><FileUp size={14} />Import</button>
           <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
           <button className={`btn ${consoleFor !== null ? "border-fin text-fin" : ""}`} onClick={() => setConsoleFor(consoleFor === null ? "" : null)}><SquareTerminal size={14} />Console</button>
         </div>
       </div>
       {error && <div className="flex items-center justify-between bg-danger/15 px-4 py-1.5 text-sm text-danger">{error}<button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
       <div className="flex min-h-0 flex-1">
-        <aside className="w-52 shrink-0 overflow-y-auto border-r border-line bg-panel p-2">
+        <aside aria-label="Component palette" tabIndex={0} className="w-52 shrink-0 overflow-y-auto border-r border-line bg-panel p-2">
+          <p className="px-1 pb-2 text-[11px] text-muted">Drag onto the canvas, or click to add.</p>
           {GROUPS.map((g) => (
             <div key={g} className="mb-3">
               <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted">{g}</div>
               {NODE_KINDS.filter((k) => k.group === g).map((k) => (
-                <div key={k.kind} draggable title={k.hint ?? `Drag ${k.label} onto the canvas`}
-                  onDragStart={(e) => { e.dataTransfer.setData("application/slyshark", k.kind); e.dataTransfer.effectAllowed = "move"; }}
-                  className="flex cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-ink hover:bg-panel-2 active:cursor-grabbing">
-                  <k.icon size={15} style={{ color: k.color }} />{k.label}
-                </div>
+                <button type="button" key={k.kind} draggable title={`${k.desc ?? k.label}${k.hint ? `\n${k.hint}` : ""}\nDrag onto the canvas, or click to add.`}
+                  aria-label={`Add ${k.label}: ${k.desc ?? ""}`}
+                  onClick={() => addAtCentre(k.kind)}
+                  onDragStart={(e) => { e.dataTransfer.setData("application/slyshark", k.kind); e.dataTransfer.effectAllowed = "move"; setDragging(true); }}
+                  onDragEnd={() => setDragging(false)}
+                  className="flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-panel-2 active:cursor-grabbing">
+                  <k.icon size={15} style={{ color: k.color }} aria-hidden="true" />{k.label}
+                </button>
               ))}
             </div>
           ))}
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={onDrop}>
+          <div data-canvas={projectId} className="relative min-h-0 flex-1" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={onDrop}>
             <ReactFlow
               nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
               onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
@@ -235,6 +260,16 @@ function DesignerInner({ projectId }: { projectId: string }) {
             >
               <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#1c2a38" />
               <Controls />
+              {nodes.length === 0 && !dragging && (
+                <div className="pointer-events-none absolute inset-x-0 top-6 z-10 flex justify-center">
+                  <div className="max-w-md rounded-lg border border-dashed border-line bg-panel/90 p-4 text-center">
+                    <MousePointerClick className="mx-auto text-fin" aria-hidden="true" />
+                    <p className="mt-2 font-medium">Start mapping your environment</p>
+                    <p className="mt-1 text-sm text-muted">Drag a component from the left onto the canvas (or click it), then drag from one component&apos;s edge to another to connect them.</p>
+                    <button className="btn pointer-events-auto mt-3" onClick={() => setMenu("templates")}><LayoutTemplate size={14} />Or start from a template</button>
+                  </div>
+                </div>
+              )}
               <MiniMap pannable zoomable style={{ width: 160, height: 100 }} nodeColor={(n) => kindOf((n.data as DeviceData).kind).color} maskColor="#070b10cc" />
             </ReactFlow>
           </div>
@@ -248,7 +283,7 @@ function DesignerInner({ projectId }: { projectId: string }) {
             </div>
           )}
         </div>
-        <aside className="w-80 shrink-0 overflow-y-auto border-l border-line bg-panel">
+        <aside aria-label="Inspector" className="w-80 shrink-0 overflow-y-auto border-l border-line bg-panel">
           <Inspector
             key={selNode?.id ?? selEdge?.id ?? "env"}
             node={selNode} edge={selEdge} busy={busy}
@@ -258,7 +293,7 @@ function DesignerInner({ projectId }: { projectId: string }) {
               if (patch.name !== undefined || patch.description !== undefined) setProjectMeta(projectId, { ...(patch.name !== undefined ? { name: patch.name } : {}), ...(patch.description !== undefined ? { description: patch.description } : {}) });
             }}
             onNode={patchNode} onEdge={patchEdge} onDelete={deleteSelected} onApplyUrl={applyUrl}
-            onTool={runTool} onConsole={(nid) => setConsoleFor(nid)}
+            onTool={runTool} onConsole={(nid) => setConsoleFor(nid)} onEditDetails={onEditDetails}
           />
         </aside>
       </div>
@@ -266,6 +301,6 @@ function DesignerInner({ projectId }: { projectId: string }) {
   );
 }
 
-export function Designer({ projectId }: { projectId: string }) {
-  return <ReactFlowProvider><DesignerInner key={projectId} projectId={projectId} /></ReactFlowProvider>;
+export function Designer({ projectId, onEditDetails }: { projectId: string; onEditDetails?: () => void }) {
+  return <ReactFlowProvider><DesignerInner key={projectId} projectId={projectId} onEditDetails={onEditDetails} /></ReactFlowProvider>;
 }

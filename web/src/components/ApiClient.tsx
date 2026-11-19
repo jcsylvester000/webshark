@@ -10,6 +10,8 @@ import { KeyValueEditor } from "@/components/KeyValueEditor";
 import { api, errMsg } from "@/lib/api";
 import type { SavedRequest } from "@/lib/project";
 import { SCRATCH, useProjects } from "@/lib/store";
+import { dialogs } from "./Dialogs";
+import { HelpTip } from "./HelpTip";
 import type { Auth, BodyMode, HttpRequestSpec, HttpResponse, KeyValue } from "@/lib/types";
 
 type Saved = SavedRequest;
@@ -72,21 +74,21 @@ export function ApiClient({ projectId }: { projectId: string }) {
   }
 
   // Adds/updates the request in the project's collections (memory; stored on "Save project").
-  function save(asNew = false) {
+  async function save(asNew = false) {
     if (current && !asNew) {
       setSaved((all) => all.map((x) => (x.id === current.id ? { ...x, request: req } : x)));
       return;
     }
-    const name = prompt("Request name", `${req.method} ${req.url.replace(/^https?:\/\//, "").slice(0, 40)}`);
-    if (!name) return;
-    const collection = prompt("Collection", current?.collection ?? "Default") || "Default";
-    const s: Saved = { id: Math.random().toString(36).slice(2, 10), name, collection, request: req };
+    const r = await dialogs.form({ title: "Add to collection", message: projectId === SCRATCH ? "Scratch mode: kept until you leave this page." : "Saved with the project when you click Save project.", confirmText: "Add",
+      fields: [{ name: "name", label: "Request name", defaultValue: `${req.method} ${req.url.replace(/^https?:\/\//, "").slice(0, 40)}` }, { name: "collection", label: "Collection (folder)", defaultValue: current?.collection ?? collections[0]?.[0] ?? "Default" }] });
+    if (!r?.name.trim()) return;
+    const s: Saved = { id: Math.random().toString(36).slice(2, 10), name: r.name.trim(), collection: r.collection.trim() || "Default", request: req };
     setSaved((all) => [...all, s]);
     setCurrentId(s.id);
   }
 
-  function remove(s: Saved) {
-    if (!confirm(`Delete "${s.name}"?`)) return;
+  async function remove(s: Saved) {
+    if (!(await dialogs.confirm({ title: `Remove “${s.name}” from the collection?`, danger: true, confirmText: "Remove" }))) return;
     setSaved((all) => all.filter((x) => x.id !== s.id));
     if (currentId === s.id) setCurrentId(null);
   }
@@ -169,6 +171,7 @@ export function ApiClient({ projectId }: { projectId: string }) {
               }}>
                 <option value="none">No auth</option><option value="bearer">Bearer token</option><option value="basic">Basic auth</option><option value="apikey">API key</option>
               </select>
+              <HelpTip>Bearer token: sends &ldquo;Authorization: Bearer &lt;token&gt;&rdquo; (common for APIs). Basic: username and password. API key: a key in a header or query parameter.</HelpTip>
               {auth.type === "bearer" && <textarea aria-label="Token" className="input min-h-20 font-mono text-xs" placeholder="eyJhbGciOi… or {{token}}" value={auth.token} onChange={(e) => setAuth({ ...auth, token: e.target.value })} />}
               {auth.type === "basic" && <div className="grid grid-cols-2 gap-2"><input aria-label="Username" className="input" placeholder="username" value={auth.username} onChange={(e) => setAuth({ ...auth, username: e.target.value })} /><input aria-label="Password" className="input" type="password" placeholder="password" value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} /></div>}
               {auth.type === "apikey" && (

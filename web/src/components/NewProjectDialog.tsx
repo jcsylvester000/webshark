@@ -7,6 +7,7 @@ import { errMsg } from "@/lib/api";
 import { command, query, type WorkspaceSummary } from "@/lib/cqrs";
 import { emptyState, type ProjectState } from "@/lib/project";
 import { TEMPLATES } from "@/lib/templates";
+import { StageSelect, TagInput } from "./ProjectDetailsDialog";
 
 export function NewProjectDialog({ onClose, initialState, workspaceId, title = "New project" }: { onClose: () => void; initialState?: ProjectState; workspaceId?: string; title?: string }) {
   const router = useRouter();
@@ -15,6 +16,9 @@ export function NewProjectDialog({ onClose, initialState, workspaceId, title = "
   const [newWs, setNewWs] = useState("");
   const [name, setName] = useState("");
   const [template, setTemplate] = useState("blank");
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [stage, setStage] = useState("none");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +36,7 @@ export function NewProjectDialog({ onClose, initialState, workspaceId, title = "
       if (ws === "__new") workspace = (await command("workspace.create", { name: newWs.trim() || "My Workspace" })).id;
       const t = TEMPLATES.find((x) => x.id === template)!;
       const state = initialState ?? { ...emptyState(), canvas: { ...t.canvas(), meta: {} } };
-      const { id } = await command("project.create", { workspaceId: workspace, name: name.trim() || t.name, description: initialState ? "" : t.description, template: initialState ? null : t.id, state });
+      const { id } = await command("project.create", { workspaceId: workspace, name: name.trim() || t.name, description: description.trim() || (initialState ? "" : t.description), template: initialState ? null : t.id, state, tags, stage });
       onClose();
       router.push(`/dashboard/projects/${id}`);
     } catch (e) { setError(errMsg(e)); setBusy(false); }
@@ -52,6 +56,12 @@ export function NewProjectDialog({ onClose, initialState, workspaceId, title = "
             </select>
             {ws === "__new" && <input aria-label="New workspace name" className="input mt-1.5" value={newWs} onChange={(e) => setNewWs(e.target.value)} placeholder="Workspace name" />}
           </div>
+        </div>
+        <div><label className="label" htmlFor="np-desc">Description <span className="normal-case tracking-normal text-muted/80">(optional)</span></label>
+          <textarea id="np-desc" className="input min-h-16" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this project document? e.g. Client A's production web stack" /></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><span className="label">Tags <span className="normal-case tracking-normal text-muted/80">(optional)</span></span><TagInput value={tags} onChange={setTags} /></div>
+          <div><label className="label" htmlFor="np-stage">Stage</label><StageSelect id="np-stage" value={stage} onChange={setStage} /></div>
         </div>
         {!initialState && (
           <div>
