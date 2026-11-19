@@ -1,22 +1,23 @@
 "use client";
 /**
  * Environment designer: palette (drag source) · React Flow canvas · inspector · console drawer.
- * Loads/saves the canvas through the Rust API (`/environments/{id}`), autosaving after edits.
+ * Bound to the in-memory project store: edits mark the project dirty and are written to the
+ * database only when the user clicks "Save project" (CQRS command `project.save`).
  */
 import {
   addEdge, Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, ReactFlow, ReactFlowProvider,
   useEdgesState, useNodesState, useReactFlow, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ChevronDown, FileDown, FileJson, FileUp, LayoutTemplate, Save, SquareTerminal, X } from "lucide-react";
-import Link from "next/link";
+import { ChevronDown, FileDown, FileJson, FileUp, LayoutTemplate, SquareTerminal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errMsg } from "@/lib/api";
 import { canvasToMarkdown, download } from "@/lib/docs";
 import { scanPorts } from "@/lib/scan";
+import { useProjects } from "@/lib/store";
 import { GROUPS, kindOf, nodeTarget, NODE_KINDS } from "@/lib/nodes";
 import { TEMPLATES } from "@/lib/templates";
-import type { AuditReport, Canvas, DeviceData, EnvFull, LinkData, PingResponse, ScanResponse } from "@/lib/types";
+import type { AuditReport, Canvas, DeviceData, LinkData, PingResponse, ScanResponse } from "@/lib/types";
 import { Terminal } from "../Terminal";
 import { DeviceNode } from "./DeviceNode";
 import type { DeviceNodeT, LinkEdgeT } from "./flow-types";
@@ -41,51 +42,34 @@ function fromFlow(nodes: DeviceNodeT[], edges: LinkEdgeT[], meta: Canvas["meta"]
   };
 }
 
-function DesignerInner({ id }: { id: string }) {
+function DesignerInner({ projectId }: { projectId: string }) {
   const flow = useReactFlow();
-  const [nodes, setNodes, onNodesChange] = useNodesState<DeviceNodeT>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<LinkEdgeT>([]);
-  const [env, setEnv] = useState<{ name: string; description: string; template: string | null; meta: NonNullable<Canvas["meta"]> } | null>(null);
+  const project = useProjects((s) => s.loaded[projectId]);
+  const update = useProjects((s) => s.update);
+  const setProjectMeta = useProjects((s) => s.setMeta);
+  const addResult = useProjects((s) => s.addResult);
+  const initial = useMemo(() => toFlow(useProjects.getState().loaded[projectId]?.state.canvas ?? { nodes: [], edges: [] }), [projectId]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<DeviceNodeT>(initial.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<LinkEdgeT>(initial.edges);
+  const [meta, setMeta] = useState<NonNullable<Canvas["meta"]>>(() => useProjects.getState().loaded[projectId]?.state.canvas.meta ?? {});
   const [selection, setSelection] = useState<{ node?: string; edge?: string }>({});
-  const [status, setStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [consoleFor, setConsoleFor] = useState<string | null>(null);
   const [menu, setMenu] = useState<"templates" | null>(null);
-  const loaded = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    api<EnvFull>(`/environments/${id}`).then((e) => {
-      const f = toFlow(e.canvas);
-      setNodes(f.nodes);
-      setEdges(f.edges);
-      setEnv({ name: e.name, description: e.description, template: e.template, meta: e.canvas.meta ?? {} });
-      setTimeout(() => { loaded.current = true; flow.fitView({ padding: 0.2 }); }, 50);
-    }).catch((e) => setError(errMsg(e)));
-  }, [id, setNodes, setEdges, flow]);
+  useEffect(() => { const t = setTimeout(() => flow.fitView({ padding: 0.2 }), 50); return () => clearTimeout(t); }, [flow]);
 
-  const save = useCallback(async () => {
-    if (!env) return;
-    setStatus("saving");
-    try {
-      await api(`/environments/${id}`, { method: "PUT", json: { name: env.name, description: env.description, canvas: fromFlow(nodes, edges, env.meta) } });
-      setStatus("saved");
-    } catch (e) { setStatus("error"); setError(errMsg(e)); }
-  }, [env, id, nodes, edges]);
-
-  // Mark dirty on any content change after the initial load, then autosave.
-  useEffect(() => { if (loaded.current) setStatus("dirty"); }, [nodes, edges, env]);
+  // Push canvas edits into the project's working state (memory only). Selection/drag noise is
+  // ignored by comparing the serialized canvas, so only real changes mark the project unsaved.
   useEffect(() => {
-    if (status !== "dirty") return;
-    const t = setTimeout(save, 2500);
+    const t = setTimeout(() => {
+      const next = fromFlow(nodes, edges, meta);
+      update(projectId, (s) => (JSON.stringify(s.canvas) === JSON.stringify(next) ? s : { ...s, canvas: next }));
+    }, 250);
     return () => clearTimeout(t);
-  }, [status, save]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [save]);
+  }, [nodes, edges, meta, projectId, update]);
 
   const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge({ ...c, id: `e-${uid()}`, type: "link", data: {}, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }, es)), [setEdges]);
 
@@ -119,15 +103,25 @@ function DesignerInner({ id }: { id: string }) {
     setBusy(`${tool}-${nid}`);
     setError(null);
     try {
-      if (tool === "ping") applyPing(target, await api<PingResponse>("/tools/ping", { method: "POST", json: { host: target, count: 3 } }));
-      if (tool === "scan") applyScan(target, await scanPorts(target, ports));
+      if (tool === "ping") {
+        const r = await api<PingResponse>("/tools/ping", { method: "POST", json: { host: target, count: 3 } });
+        applyPing(target, r);
+        addResult(projectId, { tool: "ping", target, ok: r.received > 0, summary: `${r.received}/${r.sent} replies, avg ${r.avg_ms ?? "-"} ms` });
+      }
+      if (tool === "scan") {
+        const r = await scanPorts(target, ports);
+        applyScan(target, r);
+        addResult(projectId, { tool: "portscan", target, ok: true, summary: `${r.scanned} scanned, open: ${r.open.map((p) => p.port).join(", ") || "none"}` });
+      }
       if (tool === "audit") {
         const r = await api<AuditReport>("/tools/audit", { method: "POST", json: { url: n.data.url || target, authorized: true } });
-        patchNode(nid, { audit: { at: new Date().toISOString(), score: r.score, issues: r.findings.filter((f) => !["pass", "info"].includes(f.severity)).length } });
+        const issues = r.findings.filter((f) => !["pass", "info"].includes(f.severity)).length;
+        patchNode(nid, { audit: { at: new Date().toISOString(), score: r.score, issues } });
+        addResult(projectId, { tool: "audit", target: n.data.url || target, ok: r.score >= 70, summary: `score ${r.score}/100, ${issues} issue(s)` });
       }
     } catch (e) { setError(errMsg(e)); }
     setBusy(null);
-  }, [nodes, applyPing, applyScan, patchNode]);
+  }, [nodes, applyPing, applyScan, patchNode, addResult, projectId]);
 
   const applyUrl = useCallback(async (nid: string, raw: string) => {
     const value = raw.trim();
@@ -138,7 +132,7 @@ function DesignerInner({ id }: { id: string }) {
     const n = nodes.find((x) => x.id === nid);
     const isDefault = !n || n.data.label === kindOf(n.data.kind).label;
     patchNode(nid, { url, ...(isDefault ? { label: host } : {}) });
-    if (env?.meta.autoScan && env.meta.authorized) {
+    if (meta.autoScan && meta.authorized) {
       setBusy(`scan-${nid}`);
       try {
         const r = await scanPorts(host, "common");
@@ -146,7 +140,7 @@ function DesignerInner({ id }: { id: string }) {
       } catch (e) { setError(errMsg(e)); }
       setBusy(null);
     }
-  }, [nodes, env, patchNode]);
+  }, [nodes, meta, patchNode]);
 
   const deleteSelected = useCallback(() => {
     if (selection.node) {
@@ -164,7 +158,6 @@ function DesignerInner({ id }: { id: string }) {
     const f = toFlow(t.canvas());
     setNodes(f.nodes);
     setEdges(f.edges);
-    setEnv((e) => (e ? { ...e, template: t.id } : e));
     setTimeout(() => flow.fitView({ padding: 0.2 }), 50);
   }
 
@@ -184,21 +177,19 @@ function DesignerInner({ id }: { id: string }) {
   const termContext = useMemo(() => ({
     nodes: nodes.map((n) => ({ id: n.id, label: n.data.label, target: nodeTarget(n.data) })),
     onScan: applyScan, onPing: applyPing,
-  }), [nodes, applyScan, applyPing]);
+    onResult: (r: Parameters<typeof addResult>[1]) => addResult(projectId, r),
+  }), [nodes, applyScan, applyPing, addResult, projectId]);
   const consoleNode = nodes.find((n) => n.id === consoleFor);
   const consoleTarget = consoleNode ? nodeTarget(consoleNode.data) : null;
 
-  if (error && !env) return <div className="p-8 text-danger">{error} <Link href="/dashboard/environments" className="text-fin">Back</Link></div>;
-  if (!env) return <div className="p-8 text-muted">Loading environment…</div>;
-  const canvasNow = () => fromFlow(nodes, edges, env.meta);
-  const slug = env.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (!project) return <div className="p-8 text-muted">Loading project…</div>;
+  const canvasNow = () => fromFlow(nodes, edges, meta);
+  const slug = project.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
   return (
-    <div className="flex h-screen flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
-        <Link href="/dashboard/environments" className="text-sm text-muted hover:text-ink">Environments /</Link>
-        <input aria-label="Environment name" className="w-72 bg-transparent text-sm font-semibold outline-none" value={env.name} onChange={(e) => setEnv({ ...env, name: e.target.value })} />
-        <span className={`font-mono text-xs ${status === "error" ? "text-danger" : status === "saved" ? "text-muted" : "text-amber-300"}`}>{status === "dirty" ? "unsaved" : status}</span>
+    <div className="flex h-full flex-col">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
+        <span className="text-xs text-muted">Drag components from the palette · connect handles · Delete removes</span>
         <div className="ml-auto flex items-center gap-1.5">
           <div className="relative">
             <button className="btn" onClick={() => setMenu(menu ? null : "templates")}><LayoutTemplate size={14} />Templates<ChevronDown size={13} /></button>
@@ -208,12 +199,11 @@ function DesignerInner({ id }: { id: string }) {
               </div>
             )}
           </div>
-          <button className="btn" title="Export documentation (Markdown)" onClick={() => download(`${slug}.md`, canvasToMarkdown(env.name, env.description, canvasNow()))}><FileDown size={14} />Docs</button>
+          <button className="btn" title="Export documentation (Markdown)" onClick={() => download(`${slug}.md`, canvasToMarkdown(project.meta.name, project.meta.description, canvasNow()))}><FileDown size={14} />Docs</button>
           <button className="btn" title="Export canvas JSON" onClick={() => download(`${slug}.slyshark.json`, JSON.stringify(canvasNow(), null, 2), "application/json")}><FileJson size={14} />JSON</button>
           <button className="btn" title="Import canvas JSON" onClick={() => fileRef.current?.click()}><FileUp size={14} /></button>
           <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
           <button className={`btn ${consoleFor !== null ? "border-fin text-fin" : ""}`} onClick={() => setConsoleFor(consoleFor === null ? "" : null)}><SquareTerminal size={14} />Console</button>
-          <button className="btn-primary" onClick={save}><Save size={14} />Save</button>
         </div>
       </div>
       {error && <div className="flex items-center justify-between bg-danger/15 px-4 py-1.5 text-sm text-danger">{error}<button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
@@ -254,7 +244,7 @@ function DesignerInner({ id }: { id: string }) {
                 <span>Console {consoleNode ? `· ${consoleNode.data.label}${consoleTarget ? ` (${consoleTarget})` : ""}` : "· canvas"} — node names can be used as targets</span>
                 <button onClick={() => setConsoleFor(null)} aria-label="Close console"><X size={14} /></button>
               </div>
-              <Terminal key={consoleFor} className="h-[calc(100%-2rem)]" context={termContext} prompt={consoleNode ? consoleNode.data.label.replace(/\s+/g, "-").toLowerCase() : "slyshark"} initial={consoleTarget ? `ping ${consoleTarget}` : ""} />
+              <Terminal key={consoleFor} projectId={projectId} className="h-[calc(100%-2rem)]" context={termContext} prompt={consoleNode ? consoleNode.data.label.replace(/\s+/g, "-").toLowerCase() : "slyshark"} initial={consoleTarget ? `ping ${consoleTarget}` : ""} />
             </div>
           )}
         </div>
@@ -262,8 +252,11 @@ function DesignerInner({ id }: { id: string }) {
           <Inspector
             key={selNode?.id ?? selEdge?.id ?? "env"}
             node={selNode} edge={selEdge} busy={busy}
-            env={{ name: env.name, description: env.description, meta: env.meta, nodes: nodes.length, edges: edges.length }}
-            onEnv={(patch) => setEnv({ ...env, ...patch, meta: patch.meta ?? env.meta })}
+            env={{ name: project.meta.name, description: project.meta.description, meta, nodes: nodes.length, edges: edges.length }}
+            onEnv={(patch) => {
+              if (patch.meta) setMeta(patch.meta);
+              if (patch.name !== undefined || patch.description !== undefined) setProjectMeta(projectId, { ...(patch.name !== undefined ? { name: patch.name } : {}), ...(patch.description !== undefined ? { description: patch.description } : {}) });
+            }}
             onNode={patchNode} onEdge={patchEdge} onDelete={deleteSelected} onApplyUrl={applyUrl}
             onTool={runTool} onConsole={(nid) => setConsoleFor(nid)}
           />
@@ -273,6 +266,6 @@ function DesignerInner({ id }: { id: string }) {
   );
 }
 
-export function Designer({ id }: { id: string }) {
-  return <ReactFlowProvider><DesignerInner id={id} /></ReactFlowProvider>;
+export function Designer({ projectId }: { projectId: string }) {
+  return <ReactFlowProvider><DesignerInner key={projectId} projectId={projectId} /></ReactFlowProvider>;
 }

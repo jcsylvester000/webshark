@@ -8,7 +8,9 @@
 import { ChevronDown, ChevronRight, Filter, Upload, Waves, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { errMsg } from "@/lib/api";
+import { ExportMenu } from "@/components/ExportMenu";
 import { compileFilter, rowColor } from "@/lib/filter";
+import { framesReport } from "@/lib/reports";
 import { analyzeCapture, followStream as followLocal, frameDetail, type LocalCapture } from "@/lib/pcap/analyze";
 import type { Frame, TreeNode } from "@/lib/types";
 
@@ -134,6 +136,7 @@ export default function CapturesPage() {
           <button className="btn">Apply</button>
           {applied && <button type="button" className="btn" onClick={() => { setFilterText(""); setApplied(""); }}><X size={13} /></button>}
         </form>
+        {cap && <ExportMenu small disabled={!frames.length} build={() => framesReport(frames, cap.name, applied)} />}
         {cap && <span className="font-mono text-xs text-muted">{cap.name} · {cap.format} · {cap.linktype} · {frames.length}/{cap.count} pkts · {cap.duration_s.toFixed(3)} s{cap.truncated ? " · truncated" : ""}</span>}
       </div>
       {(error || filterError) && <div className="bg-danger/15 px-4 py-1.5 text-sm text-danger">{error ?? `Filter: ${filterError}`}</div>}

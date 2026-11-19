@@ -11,6 +11,8 @@ export type TermContext = {
   nodes?: { id: string; label: string; target: string | null }[];
   onScan?: (target: string, res: ScanResponse) => void;
   onPing?: (target: string, res: PingResponse) => void;
+  /** Records a tool result in the project's working state (saved with the project). */
+  onResult?: (r: { tool: "ping" | "dns" | "portscan" | "http" | "audit"; target: string; ok: boolean; summary: string }) => void;
 };
 
 export function tokenize(input: string): string[] {
@@ -84,6 +86,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
         if (cmd === "tcping") port = args[1] ?? port ?? "443";
         const r = await api<PingResponse>("/tools/ping", { method: "POST", json: { host, count, port: port ? Number(port) : undefined } });
         ctx.onPing?.(host, r);
+        ctx.onResult?.({ tool: "ping", target: host, ok: r.received > 0, summary: `${r.received}/${r.sent} replies, avg ${r.avg_ms ?? "-"} ms (TCP ${r.port})` });
         const out: Line[] = [{ text: `PING ${r.host} (${r.address}) via ${r.mode.toUpperCase()}${r.port ? ` port ${r.port}` : ""}`, tone: "accent" }];
         for (const a of r.attempts) {
           out.push(a.ok ? { text: `  seq=${a.seq} reply from ${r.address}${r.port ? `:${r.port}` : ""} time=${a.rtt_ms} ms${a.error ? ` (${a.error})` : ""}`, tone: "ok" } : { text: `  seq=${a.seq} ${a.error ?? "no reply"}`, tone: "err" });
@@ -98,6 +101,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
         if (!yes) return [{ text: "Add -y to confirm you own this host or have written permission to scan it.", tone: "warn" }];
         const r: ScanResponse = await scanPorts(host, args[1] ?? "common");
         ctx.onScan?.(host, r);
+        ctx.onResult?.({ tool: "portscan", target: host, ok: true, summary: `${r.scanned} scanned, open: ${r.open.map((p) => p.port).join(", ") || "none"}` });
         const out: Line[] = [{ text: `Scanned ${r.scanned} ports on ${r.target} (${r.address}) in ${r.duration_ms} ms`, tone: "accent" }, { text: "PORT      STATE  SERVICE               BANNER", tone: "dim" }];
         for (const p of r.open) {
           out.push({ text: `${`${p.port}/tcp`.padEnd(9)} open   ${p.service.padEnd(21)} ${p.banner ?? ""}`, tone: "ok" });
@@ -110,6 +114,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
         if (!args[0]) return [{ text: "usage: dns <host>", tone: "err" }];
         const r = await api<{ host: string; a: string[]; aaaa: string[]; cname: string[]; mx: string[]; ns: string[]; txt: string[]; time_ms: number }>("/tools/dns", { method: "POST", json: { host: resolveTarget(args[0], ctx) } });
         const rec = (t: string, vals: string[]) => vals.map((v) => ({ text: `  ${t.padEnd(6)}${v}` }));
+        ctx.onResult?.({ tool: "dns", target: r.host, ok: r.a.length + r.aaaa.length > 0, summary: [...r.a, ...r.aaaa].join(", ") || "no A/AAAA" });
         return [{ text: `${r.host} (${r.time_ms} ms)`, tone: "accent" }, ...rec("CNAME", r.cname), ...rec("A", r.a), ...rec("AAAA", r.aaaa), ...rec("MX", r.mx), ...rec("NS", r.ns), ...rec("TXT", r.txt)];
       }
       case "curl": case "http": case "headers": {
@@ -130,6 +135,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
           timeout_ms: 30000, follow_redirects: true,
         };
         const r = await api<HttpResponse>("/tools/http", { method: "POST", json: spec });
+        ctx.onResult?.({ tool: "http", target: `${spec.method} ${url}`, ok: r.status < 400, summary: `${r.status} ${r.status_text} in ${r.time_ms} ms` });
         const out: Line[] = [{ text: `${r.http_version} ${r.status} ${r.status_text}  (${r.time_ms} ms, ${r.size_bytes} B, ${r.remote_addr})`, tone: r.status < 400 ? "ok" : "err" }];
         for (const hop of r.redirects) out.push({ text: `  ↪ ${hop.status} ${hop.url} → ${hop.location}`, tone: "dim" });
         if (showHeaders || spec.method === "HEAD") for (const hh of r.headers) out.push({ text: `${hh.key}: ${hh.value}`, tone: "dim" });
@@ -145,6 +151,7 @@ export async function runCommand(input: string, ctx: TermContext, history: strin
         if (!args[0]) return [{ text: "usage: audit <url> -y", tone: "err" }];
         if (!yes) return [{ text: "Add -y to confirm you own this site or have permission to test it.", tone: "warn" }];
         const r = await api<AuditReport>("/tools/audit", { method: "POST", json: { url: resolveTarget(args[0], ctx), authorized: true } });
+        ctx.onResult?.({ tool: "audit", target: r.final_url, ok: r.score >= 70, summary: `score ${r.score}/100` });
         const tone = (s: string): Line["tone"] => (s === "pass" ? "ok" : s === "high" || s === "medium" ? "err" : s === "low" ? "warn" : "dim");
         return [{ text: `Audit ${r.final_url} — HTTP ${r.status} — score ${r.score}/100`, tone: "accent" }, ...r.findings.map((f) => ({ text: `  [${f.severity.toUpperCase().padEnd(6)}] ${f.title}`, tone: tone(f.severity) }))];
       }

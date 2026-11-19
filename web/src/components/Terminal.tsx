@@ -1,14 +1,18 @@
 "use client";
 /** Interactive console bound to the Slyshark command engine (`lib/terminal.ts`). */
 import { useEffect, useRef, useState } from "react";
+import { useProjects } from "@/lib/store";
 import { runCommand, type Line, type TermContext } from "@/lib/terminal";
 
 const TONE: Record<string, string> = { ok: "text-emerald-300", err: "text-red-400", warn: "text-amber-300", dim: "text-muted", accent: "text-fin", cmd: "text-white" };
 
-export function Terminal({ context = {}, className = "", prompt = "slyshark", initial }: { context?: TermContext; className?: string; prompt?: string; initial?: string }) {
+/** `projectId` binds command history and tool results to that project's working state. */
+export function Terminal({ context = {}, className = "", prompt = "slyshark", initial, projectId }: { context?: TermContext; className?: string; prompt?: string; initial?: string; projectId?: string }) {
+  const update = useProjects((s) => s.update);
+  const addResult = useProjects((s) => s.addResult);
   const [lines, setLines] = useState<Line[]>([{ text: 'Slyshark console. Type "help" for commands.', tone: "dim" }]);
   const [input, setInput] = useState(initial ?? "");
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>(() => (projectId ? useProjects.getState().loaded[projectId]?.state.console.history ?? [] : []));
   const [cursor, setCursor] = useState(-1);
   const [busy, setBusy] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
@@ -19,9 +23,11 @@ export function Terminal({ context = {}, className = "", prompt = "slyshark", in
     setLines((l) => [...l, { text: `${prompt}$ ${cmd}`, tone: "cmd" }]);
     const nextHistory = cmd.trim() ? [...history, cmd] : history;
     setHistory(nextHistory);
+    if (projectId && cmd.trim()) update(projectId, (s) => ({ ...s, console: { history: nextHistory.slice(-200) } }));
     setCursor(-1);
     setBusy(true);
-    const out = await runCommand(cmd, context, nextHistory);
+    const ctx: TermContext = projectId && !context.onResult ? { ...context, onResult: (r) => addResult(projectId, r) } : context;
+    const out = await runCommand(cmd, ctx, nextHistory);
     setBusy(false);
     if (out === "clear") setLines([]);
     else setLines((l) => [...l, ...out]);

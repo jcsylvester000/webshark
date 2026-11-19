@@ -67,11 +67,3 @@ export const cookieOptions = () => ({
   path: "/",
   maxAge: config.sessionTtlHours * 3600,
 });
-
-export async function logScan(userId: string, kind: string, target: string, summary: Record<string, unknown>) {
-  try {
-    await sql`INSERT INTO scan_logs (user_id, kind, target, summary) VALUES (${userId}, ${kind}, ${target}, ${sql.json(summary as never)})`;
-  } catch (e) {
-    console.warn("[slyshark] failed to write scan log", e);
-  }
-}

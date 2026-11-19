@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
+"use client";
+/** Standalone console (scratch mode: nothing is stored). */
 import { PageHeader } from "@/components/PageHeader";
+import { ScratchBanner } from "@/components/ScratchBanner";
 import { Terminal } from "@/components/Terminal";
-
-export const metadata: Metadata = { title: "Console" };
+import { SCRATCH } from "@/lib/store";
 
 export default function TerminalPage() {
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Console" subtitle="ping, tcping, dns, curl, scan and audit. Commands run on the Slyshark API host." />
-      <Terminal className="m-4 flex-1 rounded-lg border border-line" />
+      <ScratchBanner />
+      <PageHeader title="Console" subtitle="ping, tcping, dns, curl, scan and audit. Commands run on the Slyshark server (TCP-based on Netlify)." />
+      <Terminal projectId={SCRATCH} className="m-4 flex-1 rounded-lg border border-line" />
     </div>
   );
 }

@@ -5,14 +5,14 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { parsePorts } from "@/lib/ports";
-import { logScan, requireUser } from "@/server/auth";
+import { requireUser } from "@/server/auth";
 import { config } from "@/server/config";
 import { badRequest, handle, readJson } from "@/server/http";
 import { scan } from "@/server/tools/portscan";
 import { extractHost, resolveTarget } from "@/server/tools/target";
 
 export const POST = handle(async (req: NextRequest) => {
-  const u = await requireUser(req);
+  await requireUser(req);
   const b = await readJson<{ target: string; ports?: string; timeout_ms?: number; banners?: boolean; authorized?: boolean; batch?: { index: number; total: number } }>(req);
   if (!b.authorized) throw badRequest("Confirm you own this target or have written permission to scan it");
   const host = extractHost(b.target);
@@ -24,7 +24,6 @@ export const POST = handle(async (req: NextRequest) => {
   const t = Date.now();
   const results = await scan(ip, ports, timeout, 200, b.banners !== false);
   const open = results.filter((r) => r.state === "open");
-  if (!b.batch || b.batch.index === 0) await logScan(u.id, "portscan", host, { ip, scanned: ports.length, open: open.map((o) => o.port), batches: b.batch?.total ?? 1 });
   return NextResponse.json({
     target: host, address: ip, scanned: ports.length, open,
     closed_count: results.filter((r) => r.state === "closed").length, filtered_count: results.filter((r) => r.state === "filtered").length,

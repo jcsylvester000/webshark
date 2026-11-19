@@ -10,33 +10,46 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.2)
+## Features (v0.3)
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing,
   random session tokens (only a SHA-256 hash is stored), and an httpOnly cookie.
-- **Environment designer**: drag and drop PCs, terminals, routers, firewalls, WAFs, load balancers, CDNs,
-  DNS, servers, containers, Kubernetes, databases, caches, queues, web apps, APIs, platform zones
-  (Vercel, Netlify, AWS, Laravel Forge), threat actors and vulnerabilities. Eight templates are included,
-  plus autosave and Markdown/JSON export.
-- **URL → application**: paste a URL into a Web App node. The node takes the site's name and icon,
-  and (with auto-scan on) it is port-scanned straight away.
-- **Console**: `ping` and `tcping` (TCP connect), `dns`, `curl`, `headers`, `scan`, `audit`, `nodes`, `history`.
-- **Port scanner**: TCP connect scan with banners and exposure notes. Large scans are split into
-  batches of 200 ports so each request finishes inside serverless time limits.
-- **Web audit** (light penetration testing): security headers, HTTPS redirect, cookie flags, CORS
-  reflection, risky methods, version disclosure, and exposed `.git`, `.env`, `phpinfo`, `server-status`.
-- **API client**: any method, params, headers, JSON, text, XML, urlencoded or multipart bodies, Bearer,
-  Basic or API-key auth, `{{variables}}`, saved collections, redirect chain and cURL export.
-- **Packet captures**: `.pcap` and `.pcapng` files are decoded **in your browser**: they are never
-  uploaded, and files up to 200 MB work. Wireshark-style list, protocol tree, hex view, display filters,
-  statistics, and Follow TCP Stream.
-- **Activity log** of every network action.
+- **Workspaces → projects**: organize work into workspaces. Each project keeps its full working
+  state: canvas, icons, links, API collections and variables, scanner settings and last results,
+  console history, batch scenarios, test results and notes.
+  It is stored **only when you click Save project** (Ctrl+S). Reopening a project restores it exactly.
+- **Only active projects load**: lists show summaries only. A project's state is fetched when you open
+  it, open projects appear as tabs, and closing a tab unloads it. Archive projects to hide them.
+- **Environment designer**: drag-and-drop PCs, servers, network gear, data stores, web apps, platform
+  zones and threat scenarios, plus 8 templates. Paste a URL into a Web App node and it becomes that
+  application, with an optional automatic port scan.
+- **Console, port scanner, web audit, API client** (Postman-style), all usable inside a project or
+  as scratch tools (nothing stored; "Save as project…").
+- **Batch testing**: build scenarios of DNS / TCP ping / port scan / HTTP / audit steps with
+  expectations (status codes, latency, ports open or closed, header present, body contains, minimum
+  audit score). Start from a template (Website health & security, API smoke test, Exposure check),
+  or generate a scenario from the canvas. Run in parallel, then **Save run** to keep the results.
+- **Exports**: CSV and PDF for batch runs, scans, audits, project results, saved-run lists and packet
+  lists. They are generated in the browser (jsPDF), and Markdown/JSON export is available for the canvas.
+- **Packet captures**: `.pcap` and `.pcapng` files are decoded in the browser (never uploaded, up to 200 MB),
+  with a Wireshark-style list, protocol tree and hex view, filters, statistics, and Follow TCP Stream.
+
+## CQRS design
+| Side | Where | What it does |
+|---|---|---|
+| Commands (writes) | `POST /api/commands/{name}` → `src/server/cqrs/commands.ts` | `workspace.create/update/delete`, `project.create/save/rename/setStatus/move/delete`, `batch.saveRun/deleteRun` |
+| Queries (reads) | `GET /api/queries/*` → `src/server/cqrs/queries.ts` | Read model views `workspace_summaries`, `project_summaries`, `batch_run_summaries`, plus single-project snapshot load |
+| Working state | browser, `src/lib/store.ts` (zustand) | Every edit happens here and marks the project *unsaved*; nothing is persisted until a command runs |
+| Stateless tools | `/api/tools/*` | ping, dns, portscan, http, audit. They return results and store nothing |
+
+`project.save` uses optimistic concurrency (`expectedVersion`). If the project was saved somewhere
+else, you're asked before anything is overwritten.
 
 ## Run locally (PowerShell)
 ```powershell
 cd web
 copy .env.example .env.local     # paste your Neon DATABASE_URL
 npm install
-npm run db:migrate               # creates tables + testuser / password123
+npm run db:migrate               # creates tables (0001, 0002) + testuser / password123
 npm run dev                      # http://localhost:3000
 ```
 
@@ -70,10 +83,11 @@ npm run dev                      # http://localhost:3000
 netlify.toml                 Netlify build config (base = web)
 web/db/migrations/           SQL migrations (applied by scripts/migrate.mjs)
 web/scripts/migrate.mjs      migrations + optional test-user seed
-web/src/app/api/             Route Handlers: auth, settings, environments, requests, tools/*, health
-web/src/server/              server-only: db (postgres.js), auth, config, tools (target, ping, portscan, httpClient, audit)
-web/src/app/dashboard/       UI pages · web/src/components/ (Shell, Terminal, designer/)
-web/src/lib/                 browser logic: api, scan batching, ports, terminal, filter, docs, pcap/ (reader, dissect, analyze)
+web/src/app/api/             auth/*, commands/[name], queries/*, tools/*, health
+web/src/server/              server-only: db, auth, config, cqrs/ (commands, queries), tools/ (target, ping, portscan, httpClient, audit)
+web/src/app/dashboard/       overview, workspaces, projects/[id] (workbench), runs, scratch tools, captures
+web/src/components/          Shell, designer/*, ApiClient, Scanner, Terminal, BatchTests, ResultsPanel, ExportMenu, NewProjectDialog
+web/src/lib/                 store (working state), cqrs, project, batch, export, reports, api, scan, ports, terminal, filter, docs, pcap/*
 samples/                     slyshark-demo.pcap + generator
 ```
 
