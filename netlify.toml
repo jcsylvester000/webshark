@@ -1,10 +1,13 @@
 # Netlify build configuration for Slyshark (Next.js full-stack app in web/).
-# Netlify's OpenNext adapter is applied automatically: pages, route handlers (/api/*) and
-# src/proxy.ts are deployed as functions/edge functions with zero extra config.
+# The Next.js runtime (OpenNext adapter) is declared explicitly below: because the app lives in
+# web/, Netlify's automatic framework detection can miss it and publish only static files (404s).
 [build]
   base = "web"
   command = "npm run netlify-build"   # runs DB migrations, then next build
   publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 [build.environment]
   NODE_VERSION = "22"
