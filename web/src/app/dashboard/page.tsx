@@ -79,9 +79,9 @@ export default function Overview() {
       <div className="grid gap-6 p-6 xl:grid-cols-3">
         <section className="space-y-5 xl:col-span-2">
           {showChecklist && (
-            <div className="panel p-5">
+            <div className="panel p-5" data-tour="getting-started">
               <div className="flex items-start justify-between gap-3">
-                <div><h2 className="font-medium">Getting started</h2><p className="text-sm text-muted">{doneCount} of {steps.length} done. New to networking? The <Link href="/dashboard/help" className="link">Help & glossary</Link> explains every term.</p></div>
+                <div><h2 className="font-medium">Getting started</h2><p className="text-sm text-muted">{doneCount} of {steps.length} done. New to networking? The <Link href="/dashboard/help" className="link">Help & glossary</Link> explains every term, and <Link href="/dashboard/tutorials" className="link">Tutorials</Link> walk you through each feature.</p></div>
                 <button className="text-muted hover:text-ink" aria-label="Hide getting started" title="Hide (you can bring it back in Account → Display)"
                   onClick={() => { setPrefs({ onboardingDismissed: true }); command("profile.savePreferences", { ...prefs, onboardingDismissed: true }).catch(() => null); }}><X size={16} /></button>
               </div>

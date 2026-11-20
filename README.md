@@ -10,7 +10,13 @@ console, a port scanner, a security audit and a Postman-style API client.
 The UI and the back end (Next.js Route Handlers under `/api/*`) deploy together to **Netlify**.
 Data lives in **Neon** serverless Postgres.
 
-## Features (v0.9)
+## Features (v1.0)
+- **Follow-along tutorials (v1.0)**: 82 guided tutorials in 10 tracks (getting started, workspaces,
+  designer, every component icon, testing tools, batch tests, API docs, security docs, scenario
+  capstones, compliance evidence). Each step shows a help box, shout-outs, a highlighted area and a
+  pointer, and moves on when the app detects the action (clicks, typed values, diagram changes,
+  saves, tool results, exports). Tutorials run in practice projects (workspace "Tutorial practice");
+  progress is saved to the account (`tutorial.progress`, migration 0007). Sidebar → Tutorials.
 - **Accounts**: register and sign in before the dashboard is reachable. scrypt password hashing and
   random session tokens (only a SHA-256 hash is stored). The Account page lets users edit their profile,
   change their password, see and sign out sessions, and delete the account.

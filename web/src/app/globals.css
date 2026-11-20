@@ -84,3 +84,12 @@ html.light .react-flow { color-scheme: light; }
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; }
 html.reduce-motion .react-flow__edge.animated path { stroke-dasharray: 6 4; animation: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+/* Follow-along tutorials: pointer bounce and "waiting" pulse (both stop with reduced motion). */
+@keyframes tour-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes tour-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes tour-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+.tour-bounce { animation: tour-bounce 1.2s ease-in-out infinite; }
+.tour-nudge { animation: tour-nudge 1.2s ease-in-out infinite; }
+.tour-pulse { animation: tour-pulse 1.4s ease-in-out infinite; }
+.tour-spot { transition: top 0.2s, left 0.2s, width 0.2s, height 0.2s; }

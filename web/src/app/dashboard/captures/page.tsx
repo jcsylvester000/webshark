@@ -157,7 +157,8 @@ export default function CapturesPage() {
           <div className="max-w-md">
             <Waves size={36} className="mx-auto text-fin" />
             <h2 className="mt-3 text-lg font-semibold">Open a packet capture</h2>
-            <p className="mt-1 text-sm text-muted">No capture yet? Try the sample <code>slyshark-demo.pcap</code> from the project&apos;s samples folder. Drop a .pcap or .pcapng file here (max 200 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. The file is decoded in your browser and is never uploaded.</p>
+            <p className="mt-1 text-sm text-muted">No capture yet? Open the sample below, or drop a .pcap or .pcapng file here (max 200 MB). Capture with Wireshark, tcpdump (<code>tcpdump -w out.pcap</code>), or dumpcap. The file is decoded in your browser and is never uploaded.</p>
+            <button className="btn mt-3" data-tour="open-sample" onClick={async () => { const r = await fetch("/samples/slyshark-demo.pcap"); upload(new File([await r.blob()], "slyshark-demo.pcap")); }}>Open the sample capture</button>
           </div>
         </div>
       ) : (

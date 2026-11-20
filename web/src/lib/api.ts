@@ -1,4 +1,5 @@
 /** Browser-side API client. All calls go to the Next.js route handlers at /api/*. */
+import { emit } from "./tour/bus";
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) {
     super(message);
@@ -17,6 +18,9 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
     window.location.href = `/login?expired=1&next=${encodeURIComponent(window.location.pathname)}`;
   }
   if (!res.ok) throw new ApiError(res.status, data.message ?? `Request failed (${res.status})`, data.error);
+  // Lets follow-along tutorials detect completed actions (in-memory only).
+  const m = /^\/(commands|tools)\/([\w.-]+)/.exec(path);
+  if (m && typeof window !== "undefined") emit({ type: m[1] === "commands" ? "cmd" : "tool", name: m[2] });
   return data as T;
 }
 

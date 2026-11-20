@@ -98,3 +98,7 @@ export async function getRun(ownerId: string, id: string) {
   if (!row) throw notFound();
   return row;
 }
+
+export async function listTutorialProgress(userId: string) {
+  return sql`SELECT tutorial_id, step, status, updated_at, completed_at FROM tutorial_progress WHERE user_id = ${userId} ORDER BY updated_at DESC`;
+}

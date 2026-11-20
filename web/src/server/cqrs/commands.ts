@@ -10,6 +10,7 @@ import { isUuid } from "../validate";
 
 import { accountCommands } from "./commands-account";
 import { shareCommands } from "./commands-share";
+import { tutorialCommands } from "./commands-tutorials";
 import type { Handler as CtxHandler, Payload } from "./types";
 
 type Handler = (ownerId: string, p: Payload) => Promise<Record<string, unknown>>;
@@ -226,4 +227,5 @@ export const commands: Record<string, CtxHandler> = {
   ...Object.fromEntries(Object.entries(projectCommands).map(([k, h]) => [k, byOwner(h)])),
   ...accountCommands,
   ...shareCommands,
+  ...tutorialCommands,
 };

@@ -22,8 +22,8 @@ function device(ua: string | null) {
   return { label: `${browser} on ${os}`, mobile: /Android|iPhone|iPad/.test(u) };
 }
 
-function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
-  return <section className="panel p-5"><h2 className="font-medium">{title}</h2>{desc && <p className="mt-0.5 text-sm text-muted">{desc}</p>}<div className="mt-4">{children}</div></section>;
+function Section({ title, desc, children, tour }: { title: string; desc?: string; children: React.ReactNode; tour?: string }) {
+  return <section className="panel p-5" data-tour={tour}><h2 className="font-medium">{title}</h2>{desc && <p className="mt-0.5 text-sm text-muted">{desc}</p>}<div className="mt-4">{children}</div></section>;
 }
 function Choice<T extends string>({ value, options, onChange, label }: { value: T; options: { v: T; label: string; icon?: React.ReactNode }[]; onChange: (v: T) => void; label: string }) {
   return (
@@ -120,7 +120,7 @@ export default function AccountPage() {
           </form>
         </Section>
 
-        <Section title="Where you're signed in" desc="Sign out of devices you don't recognise or no longer use.">
+        <Section tour="sessions" title="Where you're signed in" desc="Sign out of devices you don't recognise or no longer use.">
           <ul className="divide-y divide-line/60">
             {sessions.map((s) => {
               const d = device(s.user_agent);
@@ -137,7 +137,7 @@ export default function AccountPage() {
           {msg.sess && <p role="status" className="mt-2 text-sm text-emerald-300">{msg.sess.text}</p>}
         </Section>
 
-        <section className="panel border-danger/40 p-5">
+        <section className="panel border-danger/40 p-5" data-tour="delete-account">
           <h2 className="font-medium text-danger">Delete account</h2>
           <p className="mt-0.5 text-sm text-muted">Permanently deletes your account, workspaces, projects, saved runs and share links. This cannot be undone. Export anything you want to keep first.</p>
           <button className="btn-danger mt-4" onClick={async () => {

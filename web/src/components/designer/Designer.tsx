@@ -17,7 +17,7 @@ import { canvasToMarkdown, download } from "@/lib/docs";
 import { scanPorts } from "@/lib/scan";
 import { stableJson } from "@/lib/stable";
 import { useDismiss } from "@/lib/useDismiss";
-import { useProjects } from "@/lib/store";
+import { flushers, useProjects } from "@/lib/store";
 import { GROUPS, kindOf, nodeTarget, NODE_KINDS } from "@/lib/nodes";
 import { TEMPLATES } from "@/lib/templates";
 import type { AuditReport, Canvas, DeviceData, LinkData, PingResponse, ScanResponse } from "@/lib/types";
@@ -64,20 +64,31 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
+  const [find, setFind] = useState("");
   useDismiss(menu !== null, closeMenu, menuRef);
 
   useEffect(() => { const t = setTimeout(() => flow.fitView({ padding: 0.2 }), 50); return () => clearTimeout(t); }, [flow]);
 
   // Push canvas edits into the project's working state (memory only). Selection/drag noise is
   // ignored by comparing the serialized canvas, so only real changes mark the project unsaved.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const next = fromFlow(nodes, edges, meta);
-      // Key order differs after a round trip through Postgres JSONB, so compare order-insensitively.
-      update(projectId, (s) => (stableJson(s.canvas) === stableJson(next) ? s : { ...s, canvas: next }));
-    }, 250);
-    return () => clearTimeout(t);
+  const push = useCallback(() => {
+    const next = fromFlow(nodes, edges, meta);
+    // Key order differs after a round trip through Postgres JSONB, so compare order-insensitively.
+    // Also compare against the stored canvas in the designer's own shape: canvases from templates or
+    // imports carry extra fields (e.g. "animated") that the designer doesn't store, and those alone
+    // must not count as an unsaved change.
+    update(projectId, (s) => {
+      if (stableJson(s.canvas) === stableJson(next)) return s;
+      const f = toFlow(s.canvas);
+      return stableJson(fromFlow(f.nodes, f.edges, s.canvas.meta ?? {})) === stableJson(next) ? s : { ...s, canvas: next };
+    });
   }, [nodes, edges, meta, projectId, update]);
+  // Saving right after an edit must include it: Save flushes the pending push first.
+  useEffect(() => { flushers.set(projectId, push); return () => { if (flushers.get(projectId) === push) flushers.delete(projectId); }; }, [projectId, push]);
+  useEffect(() => {
+    const t = setTimeout(push, 250);
+    return () => clearTimeout(t);
+  }, [push]);
 
   const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge({ ...c, id: `e-${uid()}`, type: "link", data: {}, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }, es)), [setEdges]);
 
@@ -203,6 +214,8 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
   const consoleTarget = consoleNode ? nodeTarget(consoleNode.data) : null;
 
   if (!project) return <div className="p-8 text-muted">Loading project…</div>;
+  const q = find.trim().toLowerCase();
+  const paletteKinds = q ? NODE_KINDS.filter((k) => `${k.label} ${k.group} ${k.desc ?? ""}`.toLowerCase().includes(q)) : NODE_KINDS;
   const canvasNow = () => fromFlow(nodes, edges, meta);
   const slug = project.meta.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
@@ -237,10 +250,11 @@ function DesignerInner({ projectId, onEditDetails }: { projectId: string; onEdit
       <div className="flex min-h-0 flex-1">
         <aside aria-label="Component palette" tabIndex={0} className="w-52 shrink-0 overflow-y-auto border-r border-line bg-panel p-2">
           <p className="px-1 pb-2 text-[11px] text-muted">Drag onto the canvas, or click to add.</p>
-          {GROUPS.map((g) => (
+          <input aria-label="Search components" placeholder="Search components…" className="input mb-2 py-1 text-xs" value={find} onChange={(e) => setFind(e.target.value)} />
+          {GROUPS.filter((g) => paletteKinds.some((k) => k.group === g)).map((g) => (
             <div key={g} className="mb-3">
               <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted">{g}</div>
-              {NODE_KINDS.filter((k) => k.group === g).map((k) => (
+              {paletteKinds.filter((k) => k.group === g).map((k) => (
                 <button type="button" key={k.kind} draggable title={`${k.desc ?? k.label}${k.hint ? `\n${k.hint}` : ""}\nDrag onto the canvas, or click to add.`}
                   aria-label={`Add ${k.label}: ${k.desc ?? ""}`}
                   onClick={() => addAtCentre(k.kind)}

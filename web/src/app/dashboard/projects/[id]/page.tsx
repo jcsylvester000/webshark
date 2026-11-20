@@ -17,7 +17,7 @@ import { ShareDialog } from "@/components/ShareDialog";
 import { Time } from "@/components/Time";
 import { ApiError, errMsg } from "@/lib/api";
 import { command } from "@/lib/cqrs";
-import { prefetchProject, useProjects } from "@/lib/store";
+import { flushers, prefetchProject, useProjects } from "@/lib/store";
 import { useDismiss } from "@/lib/useDismiss";
 
 // Start fetching the project as soon as this code arrives in the browser, before React starts up.
@@ -59,6 +59,7 @@ export default function ProjectPage() {
 
   const doSave = useCallback(async (note = "") => {
     setMsg(null); setPanel(null);
+    flushers.get(id)?.();
     const cur = useProjects.getState().loaded[id];
     if (cur && !cur.dirty && !note) { setMsg({ tone: "ok", text: "Already saved — nothing new to save" }); setTimeout(() => setMsg(null), 2500); return; }
     const attempt = async (force: boolean): Promise<void> => {
@@ -105,7 +106,7 @@ export default function ProjectPage() {
           </div>
           {project.meta.description && <p className="line-clamp-1 text-xs text-muted" title={project.meta.description}>{project.meta.description}</p>}
         </div>
-        <span role="status" aria-live="polite" className={`rounded px-2 py-0.5 text-xs ${project.saving ? "text-muted" : project.dirty ? "bg-amber-500/15 text-amber-300" : msg?.tone === "ok" ? "text-emerald-300" : "text-muted"}`}>
+        <span role="status" aria-live="polite" data-tour="save-status" className={`rounded px-2 py-0.5 text-xs ${project.saving ? "text-muted" : project.dirty ? "bg-amber-500/15 text-amber-300" : msg?.tone === "ok" ? "text-emerald-300" : "text-muted"}`}>
           {project.saving ? "Saving…" : project.dirty ? "Unsaved changes" : msg?.tone === "ok" ? (msg.text === "Saved" ? "✓ Saved" : msg.text) : <Time value={project.savedAt} prefix="Saved " />}
         </span>
         {msg?.tone === "err" && <span role="alert" className="max-w-xs text-xs text-danger">{msg.text}</span>}

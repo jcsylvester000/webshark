@@ -31,6 +31,11 @@ export default function HelpPage() {
     <div>
       <PageHeader title="Help & glossary" subtitle="How Slyshark works, plus the networking and security terms you'll meet along the way." />
       <div className="mx-auto max-w-4xl space-y-6 p-6">
+        <section className="panel flex flex-wrap items-center gap-3 border-fin/40 p-5">
+          <div className="min-w-0 flex-1"><h2 className="font-medium">Learn by doing: follow-along tutorials</h2>
+            <p className="text-sm text-muted">82 guided tutorials highlight what to click, explain each icon and feature, and notice when you&apos;ve done each step — from first diagram to HIPAA, Data Privacy Act and PCI DSS evidence.</p></div>
+          <Link href="/dashboard/tutorials" className="btn-primary">Open tutorials</Link>
+        </section>
         <section className="panel p-5">
           <h2 className="font-medium">Getting started in {STEPS.length} steps</h2>
           <ol className="mt-3 space-y-3">

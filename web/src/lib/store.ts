@@ -11,6 +11,8 @@ import { api } from "./api";
 import { emptyState, MAX_RESULTS, normalizeState, type ProjectMeta, type ProjectState, type ResultEntry } from "./project";
 
 export const SCRATCH = "scratch";
+/** Editors that buffer changes (the designer) register a flush here so Save never misses a just-made edit. */
+export const flushers = new Map<string, () => void>();
 const TABS_KEY = "slyshark.openProjects";
 export const LAST_KEY = "slyshark.lastProject";
 export function lastProject(): { id: string; name: string; at: string } | null {
@@ -112,6 +114,7 @@ export const useProjects = create<Store>((set, get) => ({
   addResult: (id, r) => get().update(id, (st) => ({ ...st, results: [{ ...r, id: Math.random().toString(36).slice(2, 10), at: new Date().toISOString() }, ...st.results].slice(0, MAX_RESULTS) })),
 
   save: async (id, opts = {}) => {
+    flushers.get(id)?.();
     const cur = get().loaded[id];
     if (!cur || id === SCRATCH) return;
     set((s) => ({ loaded: { ...s.loaded, [id]: { ...s.loaded[id], saving: true } } }));

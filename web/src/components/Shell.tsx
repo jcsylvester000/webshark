@@ -3,13 +3,16 @@
  * Dashboard chrome: grouped navigation (saved work vs. quick tools), account menu, open-project
  * tabs, mobile drawer, dialog host, preference loading, and the unsaved-changes guard.
  */
-import { FileSearch, FlaskConical, FolderKanban, HelpCircle, LayoutDashboard, LogOut, Menu, Radar, Send, Settings, SquareTerminal, X } from "lucide-react";
+import { FileSearch, FlaskConical, FolderKanban, GraduationCap, HelpCircle, LayoutDashboard, LogOut, Menu, Radar, Send, Settings, SquareTerminal, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { DEFAULT_PREFS, usePrefs, type Prefs } from "@/lib/prefs";
 import { anyDirty, useProjects } from "@/lib/store";
+import { installBus } from "@/lib/tour/bus";
+import { useTour } from "@/lib/tour/engine";
 import { DialogHost, dialogs } from "./Dialogs";
 import { Logo, Wordmark } from "./Logo";
 
@@ -26,6 +29,8 @@ const TOOLS = [
   { href: "/dashboard/scanner", label: "Scanner & audit", icon: Radar },
   { href: "/dashboard/captures", label: "Packet captures", icon: FileSearch },
 ];
+// The tutorial guide is only downloaded while a tutorial is running.
+const TourOverlay = dynamic(() => import("./tour/TourOverlay"), { ssr: false });
 const HUES = ["#2ee6c5", "#60a5fa", "#a78bfa", "#f472b6", "#f59e0b", "#4ade80"];
 
 export function Avatar({ name, size = 30 }: { name: string; size?: number }) {
@@ -43,10 +48,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const loaded = useProjects((s) => s.loaded);
   const closeProject = useProjects((s) => s.close);
   const setPrefs = usePrefs((s) => s.set);
+  const tourOn = useTour((s) => Boolean(s.active || s.finished));
 
   useEffect(() => {
     api<Profile>("/queries/profile").then((u) => { setUser(u); setPrefs({ ...DEFAULT_PREFS, ...u.preferences }); }).catch(() => null);
     useProjects.getState().restoreTabs();
+    useTour.getState().restore();
+    installBus();
     const mq = window.matchMedia("(prefers-color-scheme: light)");
     const onScheme = () => setPrefs({});
     mq.addEventListener("change", onScheme);
@@ -94,7 +102,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {small && <div className="mx-2 border-t border-line" />}
           {TOOLS.map((n) => navLink(n, small))}
         </div>
-        <div className="space-y-0.5">{navLink({ href: "/dashboard/help", label: "Help & glossary", icon: HelpCircle }, small)}</div>
+        <div className="space-y-0.5">
+          {navLink({ href: "/dashboard/tutorials", label: "Tutorials", icon: GraduationCap }, small)}
+          {navLink({ href: "/dashboard/help", label: "Help & glossary", icon: HelpCircle }, small)}
+        </div>
       </nav>
       <div className="border-t border-line p-2">
         <Link href="/dashboard/account" onClick={() => setDrawer(false)} title="Account & display settings" className={`flex items-center gap-2.5 rounded-md p-2 hover:bg-panel-2 ${path.startsWith("/dashboard/account") ? "bg-panel-2" : ""}`}>
@@ -144,6 +155,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <main id="main" className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
       <DialogHost />
+      {tourOn && <TourOverlay />}
     </div>
   );
 }
