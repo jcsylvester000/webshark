@@ -5,7 +5,7 @@
  * check against the open project, the page and recent user events; when the check passes the
  * step is marked done and the guide moves on. Loaded only while a tutorial is running.
  */
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, GraduationCap, Lightbulb, PartyPopper, SkipForward, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, GripHorizontal, LocateFixed, ChevronLeft, ChevronRight, GraduationCap, Lightbulb, PartyPopper, SkipForward, TriangleAlert, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { usePrefs, type Prefs } from "@/lib/prefs";
@@ -19,6 +19,13 @@ import type { ProjectState } from "@/lib/project";
 type Registry = typeof import("@/lib/tutorials");
 type Rect = { top: number; left: number; width: number; height: number };
 const BOX_W = 360;
+/** Corner placement sits above hosting badges (e.g. "Powered by Netlify", bottom right). */
+const CORNER_BOTTOM = 80;
+/** Where the user dragged the help box (kept for every step and tutorial until they snap it back). */
+const POS_KEY = "slyshark.tour.boxPos";
+type Pos = { left: number; top: number };
+const readPos = (): Pos | null => { try { const v = JSON.parse(localStorage.getItem(POS_KEY) ?? "null"); return v && typeof v.left === "number" && typeof v.top === "number" ? v : null; } catch { return null; } };
+const savePos = (v: Pos | null) => { try { if (v) localStorage.setItem(POS_KEY, JSON.stringify(v)); else localStorage.removeItem(POS_KEY); } catch { /* storage unavailable */ } };
 const TONE = {
   tip: { cls: "border-fin/50 bg-fin/10 text-ink", icon: <Lightbulb size={15} className="mt-0.5 shrink-0 text-fin" aria-hidden /> },
   warn: { cls: "border-amber-500/50 bg-amber-500/10 text-ink", icon: <TriangleAlert size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden /> },
@@ -46,7 +53,7 @@ function Finished({ reg, id }: { reg: Registry; id: string }) {
   const doneSet = new Set(Object.entries(progress).filter(([, p]) => p.status === "completed").map(([k]) => k));
   const nxt = reg.recommendNext(doneSet, id);
   return (
-    <section data-tour-ui role="region" aria-label="Tutorial complete" className="fixed bottom-4 right-4 z-[80] w-[min(92vw,380px)] rounded-xl border border-emerald-500/50 bg-panel p-5 shadow-2xl">
+    <section data-tour-ui role="region" aria-label="Tutorial complete" className="fixed bottom-20 right-4 z-[80] w-[min(92vw,380px)] rounded-xl border border-emerald-500/50 bg-panel p-5 shadow-2xl">
       <div className="flex items-start gap-3"><PartyPopper className="shrink-0 text-emerald-400" aria-hidden /><div><h2 className="font-semibold">Tutorial complete</h2><p className="text-sm text-muted">{t?.title}</p></div>
         <button className="ml-auto text-muted hover:text-ink" aria-label="Close" onClick={closeFinished}><X size={16} /></button></div>
       {t && <p className="mt-3 text-sm"><b>You now have:</b> {t.output}</p>}
@@ -77,6 +84,30 @@ function StepGuide({ tut, idx, projectIdOfTour }: { tut: Tutorial; idx: number; 
   const [vh, setVh] = useState(() => (typeof window === "undefined" ? 800 : window.innerHeight));
   const startRef = useRef<{ at: number; state?: ProjectState; version: number; prefs?: Prefs; captured: boolean; scrolled: boolean; advancing: boolean }>({ at: 0, version: 0, captured: false, scrolled: false, advancing: false });
   const boxRef = useRef<HTMLElement>(null);
+  const [pos, setPos] = useState<Pos | null>(() => (typeof window === "undefined" ? null : readPos()));
+  const drag = useRef<{ dx: number; dy: number } | null>(null);
+  const clamp = (v: Pos): Pos => ({ left: Math.max(4, Math.min(v.left, window.innerWidth - Math.min(BOX_W, window.innerWidth - 8) - 4)), top: Math.max(4, Math.min(v.top, window.innerHeight - 60)) });
+  function onDragStart(e: React.PointerEvent<HTMLDivElement>) {
+    if ((e.target as Element).closest("button") || e.button !== 0) return;
+    const r = boxRef.current!.getBoundingClientRect();
+    drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+  function onDragMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    setPos(clamp({ left: e.clientX - drag.current.dx, top: e.clientY - drag.current.dy }));
+  }
+  function onDragEnd() { if (drag.current) { drag.current = null; setPos((v) => { savePos(v); return v; }); } }
+  function nudge(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const d = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const r = boxRef.current!.getBoundingClientRect();
+    const v = clamp({ left: (pos?.left ?? r.left) + d[0], top: (pos?.top ?? r.top) + d[1] });
+    setPos(v); savePos(v);
+  }
+  const snapBack = () => { setPos(null); savePos(null); };
   const projectId = /^\/dashboard\/projects\/([0-9a-f-]{36})/.exec(path)?.[1];
   const next = () => { if (last) complete(idx); else goto(idx + 1); };
   const nextRef = useRef(next);
@@ -156,7 +187,7 @@ function StepGuide({ tut, idx, projectIdOfTour }: { tut: Tutorial; idx: number; 
 
   const mobile = vw < 640;
   const spot = rect && step.target && found ? rect : null;
-  let box: React.CSSProperties = { right: 16, bottom: 16, width: Math.min(BOX_W, vw - 32) };
+  let box: React.CSSProperties = { right: 16, bottom: CORNER_BOTTOM, width: Math.min(BOX_W, vw - 32) };
   let pointerAbove = true;
   if (spot && !mobile) {
     const h = boxH;
@@ -173,9 +204,11 @@ function StepGuide({ tut, idx, projectIdOfTour }: { tut: Tutorial; idx: number; 
     const top = Math.max(8, Math.min(a.top, vh - h - 8));
     if (avoid.kind === "dialog" && a.left + a.width + BOX_W + 24 < vw) box = { top, left: a.left + a.width + 16, width: BOX_W };
     else if (avoid.kind === "dialog" && a.left - BOX_W - 24 > 0) box = { top, left: a.left - BOX_W - 16, width: BOX_W };
-    else box = a.left + a.width / 2 > vw / 2 ? { left: 16, bottom: 16, width: Math.min(BOX_W, vw - 32) } : { right: 16, bottom: 16, width: Math.min(BOX_W, vw - 32) };
+    else box = a.left + a.width / 2 > vw / 2 ? { left: 16, bottom: CORNER_BOTTOM, width: Math.min(BOX_W, vw - 32) } : { right: 16, bottom: CORNER_BOTTOM, width: Math.min(BOX_W, vw - 32) };
   }
   if (mobile) box = { left: 8, right: 8, bottom: 8 };
+  // A box the user moved stays where they put it.
+  if (pos && !mobile) box = { left: pos.left, top: pos.top, width: Math.min(BOX_W, vw - 8) };
   const pct = Math.round(((idx + (done ? 1 : 0)) / tut.steps.length) * 100);
 
   return (
@@ -199,9 +232,13 @@ function StepGuide({ tut, idx, projectIdOfTour }: { tut: Tutorial; idx: number; 
       <section ref={boxRef} tabIndex={-1} data-tour-ui role="region" aria-label={`Tutorial guide: ${tut.title}`}
         onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); exit(); } }}
         className="fixed z-[80] max-h-[80vh] overflow-y-auto rounded-xl border border-fin/50 bg-panel p-4 text-sm shadow-2xl outline-none" style={box}>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <GraduationCap size={14} className="text-fin" aria-hidden /><span className="truncate">{tut.id} · {tut.title}</span>
+        <div className={`-mx-1 -mt-1 flex items-center gap-2 rounded-md px-1 py-1 text-xs text-muted ${mobile ? "" : "cursor-move select-none touch-none"}`}
+          onPointerDown={mobile ? undefined : onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}
+          title={mobile ? undefined : "Drag to move this box"}>
+          {!mobile && <button className="shrink-0 cursor-move rounded p-0.5 hover:text-ink" aria-label="Move tutorial box (use the arrow keys)" title="Drag the top of this box, or use the arrow keys" onKeyDown={nudge}><GripHorizontal size={14} /></button>}
+          <GraduationCap size={14} className="shrink-0 text-fin" aria-hidden /><span className="truncate">{tut.id} · {tut.title}</span>
           <span className="ml-auto shrink-0">Step {idx + 1} of {tut.steps.length}</span>
+          {pos && !mobile && <button className="shrink-0 rounded p-0.5 hover:text-ink" aria-label="Put the tutorial box back next to the highlight" title="Snap back next to the highlighted control" onClick={snapBack}><LocateFixed size={14} /></button>}
           <button className="shrink-0 rounded p-0.5 hover:text-ink" aria-label="Pause tutorial" title="Pause (Esc). Resume from the Tutorials library." onClick={exit}><X size={15} /></button>
         </div>
         <div className="mt-2 h-1 overflow-hidden rounded bg-panel-2" role="progressbar" aria-label="Tutorial progress" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-fin transition-all" style={{ width: `${pct}%` }} /></div>
