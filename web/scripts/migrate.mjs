@@ -19,7 +19,19 @@ if (!url) {
 const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "db", "migrations");
 
+// Slyshark's tables use common names (users, sessions…). If the database already has a "users"
+// table from another app, CREATE TABLE IF NOT EXISTS would silently keep the foreign one, so stop.
+async function assertOwnUsersTable() {
+  const cols = (await sql`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'users'`).map((r) => r.column_name);
+  const need = ["id", "username", "email", "password_hash", "role"];
+  if (cols.length && need.some((c) => !cols.includes(c))) {
+    throw new Error(`this database already has a "users" table that isn't Slyshark's (columns: ${cols.join(", ")}). ` +
+      "Use an empty database: in Neon open Databases → New database (e.g. slyshark), then change the database name at the end of DATABASE_URL to it and redeploy. Nothing was changed in your existing tables.");
+  }
+}
+
 try {
+  await assertOwnUsersTable();
   await sql`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
   const done = new Set((await sql`SELECT name FROM schema_migrations`).map((r) => r.name));
   for (const file of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
